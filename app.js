@@ -587,7 +587,29 @@
     }
   }
 
-  async function handleConfirmationToggle(record, checkboxEl, cardStatusBadgeEl, cardTimestampEl) {
+  function resetCopyButtonUI(buttonEl) {
+    if (!buttonEl) {
+      return;
+    }
+    buttonEl.dataset.copyTriggered = "false";
+    buttonEl.textContent = "Salin Emel";
+    buttonEl.classList.remove(
+      "border-emerald-600",
+      "bg-emerald-600",
+      "text-white",
+      "hover:bg-emerald-700",
+      "focus:ring-emerald-500"
+    );
+    buttonEl.classList.add(
+      "border-slate-300",
+      "bg-white",
+      "text-slate-700",
+      "hover:bg-slate-100",
+      "focus:ring-blue-500"
+    );
+  }
+
+  async function handleConfirmationToggle(record, checkboxEl, cardStatusBadgeEl, cardTimestampEl, copyBtnEl) {
     const recordId = record && record.id;
     if (!recordId || state.pendingConfirmIds.has(recordId)) {
       return;
@@ -626,7 +648,7 @@
         window.RealtimeSync.trackRecord("meldotmy_pengguna", record);
       }
 
-      updateResultCardStatusUI(record, checkboxEl, cardStatusBadgeEl, cardTimestampEl);
+      updateResultCardStatusUI(record, checkboxEl, cardStatusBadgeEl, cardTimestampEl, copyBtnEl);
 
       const cache = window.IDBCache || window.cacheService;
       if (cache && typeof cache.invalidateStore === "function") {
@@ -654,10 +676,13 @@
     }
   }
 
-  function updateResultCardStatusUI(record, checkboxEl, statusBadgeEl, timestampEl) {
+  function updateResultCardStatusUI(record, checkboxEl, statusBadgeEl, timestampEl, copyBtnEl) {
     const isConfirmed = Boolean(record.sudah_maklum);
     if (checkboxEl) {
       checkboxEl.checked = isConfirmed;
+    }
+    if (!isConfirmed && copyBtnEl) {
+      resetCopyButtonUI(copyBtnEl);
     }
     if (statusBadgeEl) {
       statusBadgeEl.className = isConfirmed
@@ -773,6 +798,7 @@
 
       const copyBtn = document.createElement("button");
       copyBtn.type = "button";
+      copyBtn.setAttribute("data-role", "copy-email-btn");
       copyBtn.className = "min-h-[44px] shrink-0 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500";
       copyBtn.textContent = "Salin Emel";
       emailActionRow.appendChild(copyBtn);
@@ -818,15 +844,15 @@
         await copyEmailToClipboard(fullEmail, copyBtn);
         if (isFirstCopyClick && !checkboxEl.checked && !checkboxEl.disabled) {
           checkboxEl.checked = true;
-          handleConfirmationToggle(record, checkboxEl, statusBadge, timestampEl);
+          handleConfirmationToggle(record, checkboxEl, statusBadge, timestampEl, copyBtn);
         }
       });
 
       checkboxEl.addEventListener("change", function () {
-        handleConfirmationToggle(record, checkboxEl, statusBadge, timestampEl);
+        handleConfirmationToggle(record, checkboxEl, statusBadge, timestampEl, copyBtn);
       });
 
-      updateResultCardStatusUI(record, checkboxEl, statusBadge, timestampEl);
+      updateResultCardStatusUI(record, checkboxEl, statusBadge, timestampEl, copyBtn);
 
       card.appendChild(confirmWrap);
       fragment.appendChild(card);
@@ -965,7 +991,8 @@
             const cb = cardEl.querySelector('[data-role="confirm-checkbox"]');
             const badge = cardEl.querySelector('[data-role="status-badge"]');
             const ts = cardEl.querySelector('[data-role="timestamp-text"]');
-            updateResultCardStatusUI(state.searchResults[i], cb, badge, ts);
+            const copyBtnEl = cardEl.querySelector('[data-role="copy-email-btn"]');
+            updateResultCardStatusUI(state.searchResults[i], cb, badge, ts, copyBtnEl);
           }
         }
       }
