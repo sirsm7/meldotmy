@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Portal Semakan dan Pengesahan Makluman Username Emel Rasmi @melaka.my Negeri Melaka">
   <title>Portal Semakan &amp; Pengesahan Emel @melaka.my</title>
-  <link rel="stylesheet" href="styles.css?v=1">
+  <link rel="icon" type="image/png" href="icomelaka.png">
+  <link rel="apple-touch-icon" href="icomelaka.png">
+  <link rel="stylesheet" href="styles.css?v=2">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -13,9 +15,18 @@
   <div class="flex min-h-dvh flex-col">
     <header class="border-b border-slate-200 bg-white">
       <div class="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-        <div class="min-w-0">
-          <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Negeri Melaka</p>
-          <h1 class="mt-0.5 text-lg font-bold text-slate-900 sm:text-xl">Portal Semakan &amp; Pengesahan Emel @melaka.my</h1>
+        <div class="flex min-w-0 items-center gap-3">
+          <img
+            src="icomelaka.png"
+            alt="Logo Rasmi Portal Melaka dot My"
+            width="48"
+            height="48"
+            class="h-10 w-10 shrink-0 object-contain sm:h-12 sm:w-12"
+          >
+          <div class="min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Negeri Melaka</p>
+            <h1 class="mt-0.5 text-lg font-bold text-slate-900 sm:text-xl">Portal Semakan &amp; Pengesahan Emel @melaka.my</h1>
+          </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
@@ -124,24 +135,36 @@
               <label for="searchSekolahInput" class="block text-xs font-semibold text-slate-700 sm:text-sm">
                 Nama Sekolah <span class="font-normal text-slate-400">(Pilihan)</span>
               </label>
-              <div class="mt-1.5 flex gap-2">
-                <input
-                  id="searchSekolahInput"
-                  name="nama_sekolah"
-                  type="text"
-                  list="sekolahDatalist"
-                  autocomplete="off"
-                  placeholder="Taip atau pilih nama sekolah (kosongkan untuk carian No. KP sahaja)"
-                  class="min-h-[44px] w-full min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                >
-                <button
-                  id="btnClearSekolah"
-                  type="button"
-                  title="Kosongkan nama sekolah"
-                  class="min-h-[44px] shrink-0 rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
-                >
-                  Padam
-                </button>
+              <div class="relative mt-1.5">
+                <div class="flex gap-2">
+                  <input
+                    id="searchSekolahInput"
+                    name="nama_sekolah"
+                    type="text"
+                    list="sekolahDatalist"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded="false"
+                    aria-controls="sekolahAutocompleteList"
+                    autocomplete="off"
+                    placeholder="Klik atau taip nama sekolah untuk memilih (kosongkan untuk carian No. KP sahaja)"
+                    class="min-h-[44px] w-full min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  >
+                  <button
+                    id="btnClearSekolah"
+                    type="button"
+                    title="Kosongkan nama sekolah"
+                    class="min-h-[44px] shrink-0 rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                  >
+                    Padam
+                  </button>
+                </div>
+                <div
+                  id="sekolahAutocompleteList"
+                  role="listbox"
+                  aria-label="Senarai Sekolah Negeri Melaka"
+                  class="absolute left-0 right-0 z-30 mt-1.5 hidden overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg"
+                ></div>
               </div>
               <datalist id="sekolahDatalist"></datalist>
             </div>
@@ -400,6 +423,6 @@
   <script src="realtime.js?v=1"></script>
   <script src="migration.js?v=1"></script>
   <script src="csv-importer.js?v=1"></script>
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

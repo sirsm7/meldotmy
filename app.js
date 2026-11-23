@@ -16,7 +16,8 @@
     isSearching: false,
     pendingConfirmIds: new Set(),
     adminUser: null,
-    isAuthenticatingAdmin: false
+    isAuthenticatingAdmin: false,
+    schoolDropdownIndex: -1
   };
 
   const dom = {};
@@ -39,6 +40,7 @@
     dom.searchForm = document.getElementById("searchForm");
     dom.searchSekolahInput = document.getElementById("searchSekolahInput");
     dom.sekolahDatalist = document.getElementById("sekolahDatalist");
+    dom.sekolahAutocompleteList = document.getElementById("sekolahAutocompleteList");
     dom.btnClearSekolah = document.getElementById("btnClearSekolah");
     dom.searchNoKpInput = document.getElementById("searchNoKpInput");
     dom.btnSearch = document.getElementById("btnSearch");
@@ -191,8 +193,37 @@
     badge.appendChild(textNode);
   }
 
+  function normalizeSchoolArray(rawList) {
+    if (!Array.isArray(rawList)) {
+      return [];
+    }
+    const uniqueSet = new Set();
+    for (let i = 0; i < rawList.length; i += 1) {
+      const item = rawList[i];
+      const name = typeof item === "string"
+        ? item.trim()
+        : item && typeof item.nama_sekolah === "string"
+          ? item.nama_sekolah.trim()
+          : "";
+      if (name) {
+        uniqueSet.add(name);
+      }
+    }
+    return Array.from(uniqueSet).sort(function (a, b) {
+      return a.localeCompare(b, "ms");
+    });
+  }
+
   async function fetchSchoolsFromSupabase() {
     const supabase = await window.getSupabaseClient();
+
+    try {
+      const rpcRes = await supabase.rpc("meldotmy_get_schools");
+      if (!rpcRes.error && Array.isArray(rpcRes.data)) {
+        return normalizeSchoolArray(rpcRes.data);
+      }
+    } catch (_) {}
+
     const allSchools = [];
     const pageSize = 1000;
     let offset = 0;
@@ -221,11 +252,111 @@
       offset += pageSize;
     }
 
-    return allSchools;
+    return normalizeSchoolArray(allSchools);
+  }
+
+  function hideSchoolAutocomplete() {
+    state.schoolDropdownIndex = -1;
+    if (dom.sekolahAutocompleteList) {
+      dom.sekolahAutocompleteList.classList.add("hidden");
+    }
+    if (dom.searchSekolahInput) {
+      dom.searchSekolahInput.setAttribute("aria-expanded", "false");
+    }
+  }
+
+  function highlightSchoolOption(index) {
+    if (!dom.sekolahAutocompleteList) {
+      return;
+    }
+    const items = dom.sekolahAutocompleteList.querySelectorAll("[data-school-option]");
+    if (!items.length) {
+      state.schoolDropdownIndex = -1;
+      return;
+    }
+    let nextIdx = index;
+    if (nextIdx < 0) {
+      nextIdx = items.length - 1;
+    } else if (nextIdx >= items.length) {
+      nextIdx = 0;
+    }
+    state.schoolDropdownIndex = nextIdx;
+
+    for (let i = 0; i < items.length; i += 1) {
+      const isSelected = i === nextIdx;
+      items[i].setAttribute("aria-selected", isSelected ? "true" : "false");
+      if (isSelected) {
+        items[i].classList.add("bg-blue-50", "text-blue-800");
+        if (typeof items[i].scrollIntoView === "function") {
+          items[i].scrollIntoView({ block: "nearest" });
+        }
+      } else {
+        items[i].classList.remove("bg-blue-50", "text-blue-800");
+      }
+    }
+  }
+
+  function renderSchoolAutocomplete(filterText) {
+    if (!dom.sekolahAutocompleteList || !dom.searchSekolahInput) {
+      return;
+    }
+
+    clearElementChildren(dom.sekolahAutocompleteList);
+    state.schoolDropdownIndex = -1;
+
+    if (!state.schools || state.schools.length === 0) {
+      hideSchoolAutocomplete();
+      return;
+    }
+
+    const query = String(filterText || "").trim().toUpperCase();
+    const matches = [];
+    for (let i = 0; i < state.schools.length; i += 1) {
+      if (!query || state.schools[i].toUpperCase().indexOf(query) !== -1) {
+        matches.push(state.schools[i]);
+      }
+    }
+
+    const frag = document.createDocumentFragment();
+    const headerNote = document.createElement("div");
+    headerNote.className = "sticky top-0 border-b border-slate-100 bg-slate-50 px-3.5 py-2 text-[11px] font-semibold text-slate-500";
+    headerNote.textContent = matches.length > 0
+      ? "Pilih sekolah (" + formatNumber(matches.length) + " daripada " + formatNumber(state.schools.length) + " sekolah)"
+      : "Tiada sekolah sepadan ditemui";
+    frag.appendChild(headerNote);
+
+    for (let i = 0; i < matches.length; i += 1) {
+      const schoolName = matches[i];
+      const optionBtn = document.createElement("button");
+      optionBtn.type = "button";
+      optionBtn.setAttribute("role", "option");
+      optionBtn.setAttribute("aria-selected", "false");
+      optionBtn.setAttribute("data-school-option", schoolName);
+      optionBtn.className = "block w-full px-3.5 py-2.5 text-left text-xs font-medium text-slate-800 transition hover:bg-blue-50 hover:text-blue-800 focus:bg-blue-50 focus:outline-none sm:text-sm";
+      optionBtn.textContent = schoolName;
+
+      optionBtn.addEventListener("mousedown", function (event) {
+        event.preventDefault();
+      });
+
+      optionBtn.addEventListener("click", function () {
+        dom.searchSekolahInput.value = schoolName;
+        hideSchoolAutocomplete();
+        if (dom.searchNoKpInput) {
+          dom.searchNoKpInput.focus();
+        }
+      });
+
+      frag.appendChild(optionBtn);
+    }
+
+    dom.sekolahAutocompleteList.appendChild(frag);
+    dom.sekolahAutocompleteList.classList.remove("hidden");
+    dom.searchSekolahInput.setAttribute("aria-expanded", "true");
   }
 
   function populateSchoolControls(schoolList) {
-    state.schools = Array.isArray(schoolList) ? schoolList : [];
+    state.schools = normalizeSchoolArray(schoolList);
     state.schoolsSet = new Set(state.schools);
 
     if (dom.sekolahDatalist) {
@@ -264,24 +395,46 @@
         state.statsSekolahFilter = "";
       }
     }
+
+    if (dom.sekolahAutocompleteList && !dom.sekolahAutocompleteList.classList.contains("hidden")) {
+      renderSchoolAutocomplete(dom.searchSekolahInput ? dom.searchSekolahInput.value : "");
+    }
   }
 
   async function loadSchools(forceRefresh) {
     const cache = window.IDBCache || window.cacheService;
     if (cache && typeof cache.getWithSWR === "function") {
+      let effectiveForce = Boolean(forceRefresh);
+      if (!effectiveForce && typeof cache.get === "function") {
+        const cachedEntry = await cache.get("meldotmy_sekolah", "all_schools");
+        if (cachedEntry && (!Array.isArray(cachedEntry.data) || cachedEntry.data.length === 0)) {
+          if (typeof cache.invalidateKey === "function") {
+            await cache.invalidateKey("meldotmy_sekolah", "all_schools");
+          }
+          effectiveForce = true;
+        }
+      }
+
       const result = await cache.getWithSWR(
         "meldotmy_sekolah",
         "all_schools",
         fetchSchoolsFromSupabase,
         {
           ttlMs: SEKOLAH_CACHE_TTL_MS,
-          forceRefresh: Boolean(forceRefresh),
+          forceRefresh: effectiveForce,
           onUpdate: function (freshList) {
-            populateSchoolControls(freshList);
+            if (Array.isArray(freshList) && freshList.length > 0) {
+              populateSchoolControls(freshList);
+            }
           }
         }
       );
-      populateSchoolControls(result.data || []);
+
+      const list = Array.isArray(result.data) ? result.data : [];
+      if (list.length === 0 && typeof cache.invalidateKey === "function") {
+        await cache.invalidateKey("meldotmy_sekolah", "all_schools");
+      }
+      populateSchoolControls(list);
       return;
     }
 
@@ -770,6 +923,7 @@
     if (dom.searchForm) {
       dom.searchForm.reset();
     }
+    hideSchoolAutocomplete();
     renderSearchResults([]);
     showAlertBox(dom.searchFeedback, "", "");
     if (dom.searchNoKpInput) {
@@ -1174,9 +1328,69 @@
       });
     }
 
+    if (dom.searchSekolahInput) {
+      dom.searchSekolahInput.addEventListener("focus", function () {
+        renderSchoolAutocomplete(dom.searchSekolahInput.value);
+      });
+
+      dom.searchSekolahInput.addEventListener("click", function () {
+        renderSchoolAutocomplete(dom.searchSekolahInput.value);
+      });
+
+      dom.searchSekolahInput.addEventListener("input", function () {
+        renderSchoolAutocomplete(dom.searchSekolahInput.value);
+      });
+
+      dom.searchSekolahInput.addEventListener("keydown", function (event) {
+        if (!dom.sekolahAutocompleteList || dom.sekolahAutocompleteList.classList.contains("hidden")) {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            renderSchoolAutocomplete(dom.searchSekolahInput.value);
+            highlightSchoolOption(0);
+          }
+          return;
+        }
+
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          highlightSchoolOption(state.schoolDropdownIndex + 1);
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          highlightSchoolOption(state.schoolDropdownIndex - 1);
+        } else if (event.key === "Enter" && state.schoolDropdownIndex >= 0) {
+          const items = dom.sekolahAutocompleteList.querySelectorAll("[data-school-option]");
+          if (items[state.schoolDropdownIndex]) {
+            event.preventDefault();
+            dom.searchSekolahInput.value = items[state.schoolDropdownIndex].getAttribute("data-school-option") || "";
+            hideSchoolAutocomplete();
+            if (dom.searchNoKpInput) {
+              dom.searchNoKpInput.focus();
+            }
+          }
+        } else if (event.key === "Escape") {
+          hideSchoolAutocomplete();
+        }
+      });
+    }
+
+    document.addEventListener("click", function (event) {
+      if (!dom.sekolahAutocompleteList || dom.sekolahAutocompleteList.classList.contains("hidden")) {
+        return;
+      }
+      const target = event.target;
+      if (dom.searchSekolahInput && dom.searchSekolahInput.contains(target)) {
+        return;
+      }
+      if (dom.sekolahAutocompleteList.contains(target)) {
+        return;
+      }
+      hideSchoolAutocomplete();
+    });
+
     if (dom.btnClearSekolah && dom.searchSekolahInput) {
       dom.btnClearSekolah.addEventListener("click", function () {
         dom.searchSekolahInput.value = "";
+        renderSchoolAutocomplete("");
         dom.searchSekolahInput.focus();
       });
     }
@@ -1207,7 +1421,10 @@
 
     if (dom.btnRefreshStats) {
       dom.btnRefreshStats.addEventListener("click", function () {
-        loadDashboardStats(true).catch(function (err) {
+        Promise.all([
+          loadSchools(true),
+          loadDashboardStats(true)
+        ]).catch(function (err) {
           showAlertBox(dom.globalBanner, "error", err && err.message ? err.message : "Gagal menyegarkan statistik.");
         });
       });

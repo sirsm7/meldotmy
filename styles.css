@@ -20,6 +20,8 @@ body {
 
 input[type="text"],
 input[type="search"],
+input[type="email"],
+input[type="password"],
 select {
   font-size: 16px;
 }
@@ -27,6 +29,8 @@ select {
 @media (min-width: 640px) {
   input[type="text"],
   input[type="search"],
+  input[type="email"],
+  input[type="password"],
   select {
     font-size: 0.875rem;
   }
@@ -68,8 +72,34 @@ select:disabled {
   outline-offset: 2px;
 }
 
+#sekolahAutocompleteList {
+  max-height: min(16rem, 45dvh);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+#sekolahAutocompleteList::-webkit-scrollbar {
+  width: 6px;
+}
+
+#sekolahAutocompleteList::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+#sekolahAutocompleteList::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+}
+
+#sekolahAutocompleteList [data-school-option] {
+  min-height: 44px;
+}
+
 #statProgressBar,
-#migrationProgressBar {
+#migrationProgressBar,
+#csvProgressBar {
   transition: width 260ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: width;
 }
@@ -80,7 +110,8 @@ select:disabled {
   }
 
   #statProgressBar,
-  #migrationProgressBar {
+  #migrationProgressBar,
+  #csvProgressBar {
     transition: none;
   }
 }
