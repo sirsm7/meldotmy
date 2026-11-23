@@ -11,6 +11,7 @@
     activeSearchNoKp: "",
     searchResults: [],
     statsSekolahFilter: "",
+    statsSchoolDropdownIndex: -1,
     searchAbortController: null,
     isSearching: false,
     pendingConfirmIds: new Set(),
@@ -24,7 +25,8 @@
     dom.realtimeStatusBadge = document.getElementById("realtimeStatusBadge");
     dom.globalBanner = document.getElementById("globalBanner");
 
-    dom.statsScopeSelect = document.getElementById("statsScopeSelect");
+    dom.statsScopeInput = document.getElementById("statsScopeInput");
+    dom.statsScopeListbox = document.getElementById("statsScopeListbox");
     dom.btnRefreshStats = document.getElementById("btnRefreshStats");
     dom.statTotalPengguna = document.getElementById("statTotalPengguna");
     dom.statSudahMaklum = document.getElementById("statSudahMaklum");
@@ -249,34 +251,169 @@
     return normalizeSchoolArray(allSchools);
   }
 
+  function hideStatsSchoolDropdown() {
+    state.statsSchoolDropdownIndex = -1;
+    if (dom.statsScopeListbox) {
+      dom.statsScopeListbox.classList.add("hidden");
+    }
+    if (dom.statsScopeInput) {
+      dom.statsScopeInput.setAttribute("aria-expanded", "false");
+    }
+  }
+
+  function highlightStatsSchoolOption(index) {
+    if (!dom.statsScopeListbox) {
+      return;
+    }
+    const items = dom.statsScopeListbox.querySelectorAll("[data-stats-school-option]");
+    if (!items.length) {
+      state.statsSchoolDropdownIndex = -1;
+      return;
+    }
+    let nextIdx = index;
+    if (nextIdx < 0) {
+      nextIdx = items.length - 1;
+    } else if (nextIdx >= items.length) {
+      nextIdx = 0;
+    }
+    state.statsSchoolDropdownIndex = nextIdx;
+
+    for (let i = 0; i < items.length; i += 1) {
+      const isSelected = i === nextIdx;
+      items[i].setAttribute("aria-selected", isSelected ? "true" : "false");
+      if (isSelected) {
+        items[i].classList.add("bg-blue-50", "text-blue-800");
+        if (typeof items[i].scrollIntoView === "function") {
+          items[i].scrollIntoView({ block: "nearest" });
+        }
+      } else {
+        items[i].classList.remove("bg-blue-50", "text-blue-800");
+      }
+    }
+  }
+
+  function selectStatsSchoolScope(schoolValue) {
+    const normalizedVal = schoolValue && state.schoolsSet.has(schoolValue) ? schoolValue : "";
+    state.statsSekolahFilter = normalizedVal;
+    if (dom.statsScopeInput) {
+      dom.statsScopeInput.value = normalizedVal;
+    }
+    hideStatsSchoolDropdown();
+    loadDashboardStats(false).catch(function (err) {
+      showAlertBox(dom.globalBanner, "error", err && err.message ? err.message : "Gagal memuatkan statistik.");
+    });
+  }
+
+  function filterMatchingSchools(rawQuery) {
+    const query = String(rawQuery || "").trim().toUpperCase();
+    if (!query) {
+      return state.schools.slice();
+    }
+    const tokens = query.split(/\s+/).filter(Boolean);
+    const prefixMatches = [];
+    const substringMatches = [];
+    const tokenMatches = [];
+
+    for (let i = 0; i < state.schools.length; i += 1) {
+      const schoolName = state.schools[i];
+      const upperSchool = schoolName.toUpperCase();
+      if (upperSchool.indexOf(query) === 0) {
+        prefixMatches.push(schoolName);
+      } else if (upperSchool.indexOf(query) !== -1) {
+        substringMatches.push(schoolName);
+      } else if (tokens.length > 1) {
+        let allTokensFound = true;
+        for (let t = 0; t < tokens.length; t += 1) {
+          if (upperSchool.indexOf(tokens[t]) === -1) {
+            allTokensFound = false;
+            break;
+          }
+        }
+        if (allTokensFound) {
+          tokenMatches.push(schoolName);
+        }
+      }
+    }
+
+    return prefixMatches.concat(substringMatches, tokenMatches);
+  }
+
+  function renderStatsSchoolDropdown(filterText) {
+    if (!dom.statsScopeListbox || !dom.statsScopeInput) {
+      return;
+    }
+
+    clearElementChildren(dom.statsScopeListbox);
+    state.statsSchoolDropdownIndex = -1;
+
+    const matches = filterMatchingSchools(filterText);
+    const frag = document.createDocumentFragment();
+
+    const headerNote = document.createElement("div");
+    headerNote.className = "sticky top-0 border-b border-slate-100 bg-slate-50 px-3.5 py-2 text-[11px] font-semibold text-slate-500";
+    headerNote.textContent = matches.length > 0
+      ? "Paparan: " + formatNumber(matches.length) + " daripada " + formatNumber(state.schools.length) + " sekolah"
+      : "Tiada sekolah sepadan ditemui";
+    frag.appendChild(headerNote);
+
+    const allOptionBtn = document.createElement("button");
+    allOptionBtn.type = "button";
+    allOptionBtn.setAttribute("role", "option");
+    allOptionBtn.setAttribute("aria-selected", state.statsSekolahFilter === "" ? "true" : "false");
+    allOptionBtn.setAttribute("data-stats-school-option", "");
+    allOptionBtn.className = "block w-full border-b border-slate-100 px-3.5 py-2.5 text-left text-xs font-semibold text-blue-700 transition hover:bg-blue-50 focus:bg-blue-50 focus:outline-none sm:text-sm";
+    allOptionBtn.textContent = "Semua Sekolah Negeri Melaka (" + formatNumber(state.schools.length) + ")";
+    allOptionBtn.addEventListener("mousedown", function (event) {
+      event.preventDefault();
+    });
+    allOptionBtn.addEventListener("click", function () {
+      selectStatsSchoolScope("");
+    });
+    frag.appendChild(allOptionBtn);
+
+    for (let i = 0; i < matches.length; i += 1) {
+      const schoolName = matches[i];
+      const optionBtn = document.createElement("button");
+      optionBtn.type = "button";
+      optionBtn.setAttribute("role", "option");
+      optionBtn.setAttribute("aria-selected", state.statsSekolahFilter === schoolName ? "true" : "false");
+      optionBtn.setAttribute("data-stats-school-option", schoolName);
+      optionBtn.className = "block w-full px-3.5 py-2.5 text-left text-xs font-medium text-slate-800 transition hover:bg-blue-50 hover:text-blue-800 focus:bg-blue-50 focus:outline-none sm:text-sm";
+      optionBtn.textContent = schoolName;
+
+      optionBtn.addEventListener("mousedown", function (event) {
+        event.preventDefault();
+      });
+      optionBtn.addEventListener("click", function () {
+        selectStatsSchoolScope(schoolName);
+      });
+
+      frag.appendChild(optionBtn);
+    }
+
+    dom.statsScopeListbox.appendChild(frag);
+    dom.statsScopeListbox.classList.remove("hidden");
+    dom.statsScopeInput.setAttribute("aria-expanded", "true");
+  }
+
   function populateSchoolControls(schoolList) {
     state.schools = normalizeSchoolArray(schoolList);
     state.schoolsSet = new Set(state.schools);
 
-    if (dom.statsScopeSelect) {
-      const previousVal = dom.statsScopeSelect.value || state.statsSekolahFilter || "";
-      clearElementChildren(dom.statsScopeSelect);
-      const frag = document.createDocumentFragment();
-
-      const allOption = document.createElement("option");
-      allOption.value = "";
-      allOption.textContent = "Semua Sekolah Negeri Melaka (" + formatNumber(state.schools.length) + ")";
-      frag.appendChild(allOption);
-
-      for (let i = 0; i < state.schools.length; i += 1) {
-        const opt = document.createElement("option");
-        opt.value = state.schools[i];
-        opt.textContent = state.schools[i];
-        frag.appendChild(opt);
-      }
-
-      dom.statsScopeSelect.appendChild(frag);
+    if (dom.statsScopeInput) {
+      dom.statsScopeInput.placeholder = "Semua Sekolah Negeri Melaka (" + formatNumber(state.schools.length) + ")";
+      const previousVal = state.statsSekolahFilter || String(dom.statsScopeInput.value || "").trim().toUpperCase();
       if (previousVal && state.schoolsSet.has(previousVal)) {
-        dom.statsScopeSelect.value = previousVal;
-      } else {
-        dom.statsScopeSelect.value = "";
+        state.statsSekolahFilter = previousVal;
+        dom.statsScopeInput.value = previousVal;
+      } else if (state.statsSekolahFilter && !state.schoolsSet.has(state.statsSekolahFilter)) {
         state.statsSekolahFilter = "";
+        dom.statsScopeInput.value = "";
       }
+    }
+
+    if (dom.statsScopeListbox && !dom.statsScopeListbox.classList.contains("hidden")) {
+      renderStatsSchoolDropdown(dom.statsScopeInput ? dom.statsScopeInput.value : "");
     }
   }
 
@@ -1199,21 +1336,103 @@
       });
     }
 
-    if (dom.statsScopeSelect) {
-      dom.statsScopeSelect.addEventListener("change", function () {
-        state.statsSekolahFilter = dom.statsScopeSelect.value || "";
-        loadDashboardStats(false).catch(function (err) {
-          showAlertBox(dom.globalBanner, "error", err && err.message ? err.message : "Gagal memuatkan statistik.");
-        });
+    if (dom.statsScopeInput) {
+      dom.statsScopeInput.addEventListener("focus", function () {
+        const currentVal = String(dom.statsScopeInput.value || "").trim().toUpperCase();
+        renderStatsSchoolDropdown(currentVal === state.statsSekolahFilter ? "" : currentVal);
+      });
+
+      dom.statsScopeInput.addEventListener("click", function () {
+        const currentVal = String(dom.statsScopeInput.value || "").trim().toUpperCase();
+        renderStatsSchoolDropdown(currentVal === state.statsSekolahFilter ? "" : currentVal);
+      });
+
+      dom.statsScopeInput.addEventListener("input", function () {
+        const start = dom.statsScopeInput.selectionStart;
+        const end = dom.statsScopeInput.selectionEnd;
+        const upperVal = String(dom.statsScopeInput.value || "").toUpperCase();
+        if (dom.statsScopeInput.value !== upperVal) {
+          dom.statsScopeInput.value = upperVal;
+          if (typeof start === "number" && typeof end === "number" && typeof dom.statsScopeInput.setSelectionRange === "function") {
+            dom.statsScopeInput.setSelectionRange(start, end);
+          }
+        }
+
+        const trimmedUpper = upperVal.trim();
+        if (!trimmedUpper && state.statsSekolahFilter !== "") {
+          state.statsSekolahFilter = "";
+          loadDashboardStats(false).catch(function () {});
+        } else if (state.schoolsSet.has(trimmedUpper) && state.statsSekolahFilter !== trimmedUpper) {
+          state.statsSekolahFilter = trimmedUpper;
+          loadDashboardStats(false).catch(function () {});
+        }
+
+        renderStatsSchoolDropdown(upperVal);
+      });
+
+      dom.statsScopeInput.addEventListener("keydown", function (event) {
+        if (!dom.statsScopeListbox || dom.statsScopeListbox.classList.contains("hidden")) {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            const currentVal = String(dom.statsScopeInput.value || "").trim().toUpperCase();
+            renderStatsSchoolDropdown(currentVal === state.statsSekolahFilter ? "" : currentVal);
+            highlightStatsSchoolOption(0);
+          }
+          return;
+        }
+
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          highlightStatsSchoolOption(state.statsSchoolDropdownIndex + 1);
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          highlightStatsSchoolOption(state.statsSchoolDropdownIndex - 1);
+        } else if (event.key === "Enter") {
+          event.preventDefault();
+          const items = dom.statsScopeListbox.querySelectorAll("[data-stats-school-option]");
+          if (state.statsSchoolDropdownIndex >= 0 && items[state.statsSchoolDropdownIndex]) {
+            const chosen = items[state.statsSchoolDropdownIndex].getAttribute("data-stats-school-option") || "";
+            selectStatsSchoolScope(chosen);
+          } else {
+            const typedUpper = String(dom.statsScopeInput.value || "").trim().toUpperCase();
+            if (!typedUpper) {
+              selectStatsSchoolScope("");
+            } else if (state.schoolsSet.has(typedUpper)) {
+              selectStatsSchoolScope(typedUpper);
+            } else {
+              const matches = filterMatchingSchools(typedUpper);
+              if (matches.length === 1) {
+                selectStatsSchoolScope(matches[0]);
+              }
+            }
+          }
+        } else if (event.key === "Escape") {
+          hideStatsSchoolDropdown();
+        }
       });
     }
+
+    document.addEventListener("click", function (event) {
+      if (!dom.statsScopeListbox || dom.statsScopeListbox.classList.contains("hidden")) {
+        return;
+      }
+      const target = event.target;
+      if (dom.statsScopeInput && dom.statsScopeInput.contains(target)) {
+        return;
+      }
+      if (dom.statsScopeListbox.contains(target)) {
+        return;
+      }
+      hideStatsSchoolDropdown();
+    });
 
     if (dom.btnRefreshStats) {
       dom.btnRefreshStats.addEventListener("click", function () {
         state.statsSekolahFilter = "";
-        if (dom.statsScopeSelect) {
-          dom.statsScopeSelect.value = "";
+        if (dom.statsScopeInput) {
+          dom.statsScopeInput.value = "";
         }
+        hideStatsSchoolDropdown();
         Promise.all([
           loadSchools(true),
           loadDashboardStats(true)

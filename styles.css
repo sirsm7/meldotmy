@@ -72,6 +72,39 @@ select:disabled {
   outline-offset: 2px;
 }
 
+#statsScopeInput {
+  text-transform: uppercase;
+}
+
+#statsScopeInput::placeholder {
+  text-transform: none;
+}
+
+#statsScopeListbox {
+  max-height: min(16rem, 45dvh);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+#statsScopeListbox::-webkit-scrollbar {
+  width: 6px;
+}
+
+#statsScopeListbox::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+#statsScopeListbox::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+}
+
+#statsScopeListbox [data-stats-school-option] {
+  min-height: 44px;
+}
+
 #statProgressBar,
 #migrationProgressBar,
 #csvProgressBar {

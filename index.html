@@ -7,7 +7,7 @@
   <title>Portal Semakan &amp; Pengesahan Emel @melaka.my</title>
   <link rel="icon" type="image/png" href="icomelaka.png">
   <link rel="apple-touch-icon" href="icomelaka.png">
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=4">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -71,10 +71,26 @@
             <p class="mt-0.5 text-xs text-slate-500 sm:text-sm">Statistik agregat pengesahan makluman emel mengikut keseluruhan negeri atau sekolah.</p>
           </div>
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label for="statsScopeSelect" class="sr-only">Tapisan Skop Statistik Sekolah</label>
-            <select id="statsScopeSelect" class="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 sm:w-72">
-              <option value="">Semua Sekolah Negeri Melaka</option>
-            </select>
+            <div class="relative w-full min-w-0 sm:w-80">
+              <label for="statsScopeInput" class="sr-only">Carian &amp; Tapisan Skop Statistik Sekolah</label>
+              <input
+                id="statsScopeInput"
+                type="text"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="statsScopeListbox"
+                autocomplete="off"
+                placeholder="Semua Sekolah Negeri Melaka"
+                class="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-800 placeholder:text-slate-600 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+              <div
+                id="statsScopeListbox"
+                role="listbox"
+                aria-label="Senarai Sekolah Negeri Melaka"
+                class="absolute left-0 right-0 z-30 mt-1.5 hidden overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg"
+              ></div>
+            </div>
             <button id="btnRefreshStats" type="button" class="min-h-[44px] shrink-0 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100">
               Segar Semula
             </button>
