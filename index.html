@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Portal Semakan dan Pengesahan Makluman Username Emel Rasmi @melaka.my Negeri Melaka">
+  <title>Portal Semakan &amp; Pengesahan Emel @melaka.my</title>
+  <link rel="stylesheet" href="styles.css?v=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased">
+  <div class="flex min-h-dvh flex-col">
+    <header class="border-b border-slate-200 bg-white">
+      <div class="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
+        <div class="min-w-0">
+          <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Negeri Melaka</p>
+          <h1 class="mt-0.5 text-lg font-bold text-slate-900 sm:text-xl">Portal Semakan &amp; Pengesahan Emel @melaka.my</h1>
+        </div>
+        <span id="realtimeStatusBadge" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+          <span class="h-2 w-2 rounded-full bg-slate-400"></span>
+          Sedia
+        </span>
+      </div>
+    </header>
+
+    <main class="mx-auto w-full max-w-5xl flex-1 space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+      <div id="globalBanner" class="hidden" aria-live="polite"></div>
+
+      <section aria-labelledby="statsHeading" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+        <div class="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <div class="min-w-0">
+            <h2 id="statsHeading" class="text-base font-bold text-slate-900 sm:text-lg">Ringkasan Status Pengesahan</h2>
+            <p class="mt-0.5 text-xs text-slate-500 sm:text-sm">Statistik agregat pengesahan makluman emel mengikut keseluruhan negeri atau sekolah.</p>
+          </div>
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label for="statsScopeSelect" class="sr-only">Tapisan Skop Statistik Sekolah</label>
+            <select id="statsScopeSelect" class="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 sm:w-72">
+              <option value="">Semua Sekolah Negeri Melaka</option>
+            </select>
+            <button id="btnRefreshStats" type="button" class="min-h-[44px] shrink-0 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100">
+              Segar Semula
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <p class="text-xs font-medium text-slate-500">Jumlah Akaun Emel</p>
+            <p id="statTotalPengguna" class="mt-1 text-2xl font-bold text-slate-900">0</p>
+            <p class="mt-1 text-xs text-slate-500">
+              Sekolah: <span id="statTotalSekolah" class="font-semibold text-slate-700">0</span>
+            </p>
+          </div>
+
+          <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+            <p class="text-xs font-medium text-emerald-800">Sudah Maklum</p>
+            <div class="mt-1 flex items-baseline justify-between gap-2">
+              <p id="statSudahMaklum" class="text-2xl font-bold text-emerald-700">0</p>
+              <span id="statPeratusMaklum" class="text-xs font-semibold text-emerald-700">0.0%</span>
+            </div>
+            <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-emerald-100">
+              <div id="statProgressBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" class="h-full rounded-full bg-emerald-600" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+            <p class="text-xs font-medium text-amber-800">Belum Maklum</p>
+            <p id="statBelumMaklum" class="mt-1 text-2xl font-bold text-amber-700">0</p>
+            <p class="mt-1 text-xs text-amber-800/80">Menunggu semakan pengguna</p>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <p class="text-xs font-medium text-slate-500">Pecahan Kategori</p>
+            <p class="mt-1.5 text-xs text-slate-700">
+              <span class="font-semibold text-indigo-700">Guru:</span>
+              <span id="statGuruSummary">0 / 0 maklum</span>
+            </p>
+            <p class="mt-1 text-xs text-slate-700">
+              <span class="font-semibold text-sky-700">Pelajar:</span>
+              <span id="statPelajarSummary">0 / 0 maklum</span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="searchHeading" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+        <div class="border-b border-slate-100 pb-4">
+          <h2 id="searchHeading" class="text-base font-bold text-slate-900 sm:text-lg">Semakan Akaun Emel @melaka.my</h2>
+          <p class="mt-1 text-xs text-slate-600 sm:text-sm">
+            Atas faktor privasi, senarai penuh tidak dipaparkan secara terbuka. Sila buat carian menggunakan <strong>No. Kad Pengenalan (12 digit)</strong> sahaja atau gabungan <strong>Nama Sekolah + No. Kad Pengenalan</strong>.
+          </p>
+        </div>
+
+        <form id="searchForm" class="mt-5 space-y-4" novalidate>
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-12">
+            <div class="min-w-0 md:col-span-7">
+              <label for="searchSekolahInput" class="block text-xs font-semibold text-slate-700 sm:text-sm">
+                Nama Sekolah <span class="font-normal text-slate-400">(Pilihan)</span>
+              </label>
+              <div class="mt-1.5 flex gap-2">
+                <input
+                  id="searchSekolahInput"
+                  name="nama_sekolah"
+                  type="text"
+                  list="sekolahDatalist"
+                  autocomplete="off"
+                  placeholder="Taip atau pilih nama sekolah (kosongkan untuk carian No. KP sahaja)"
+                  class="min-h-[44px] w-full min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                <button
+                  id="btnClearSekolah"
+                  type="button"
+                  title="Kosongkan nama sekolah"
+                  class="min-h-[44px] shrink-0 rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                >
+                  Padam
+                </button>
+              </div>
+              <datalist id="sekolahDatalist"></datalist>
+            </div>
+
+            <div class="min-w-0 md:col-span-5">
+              <label for="searchNoKpInput" class="block text-xs font-semibold text-slate-700 sm:text-sm">
+                No. Kad Pengenalan <span class="text-red-600">*</span>
+              </label>
+              <input
+                id="searchNoKpInput"
+                name="no_kp"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]{12}"
+                maxlength="12"
+                required
+                autocomplete="off"
+                placeholder="Contoh: 060315040205"
+                class="mt-1.5 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 font-mono text-slate-900 placeholder:font-sans placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2.5 pt-1 sm:flex-row sm:items-center">
+            <button
+              id="btnSearch"
+              type="submit"
+              class="min-h-[44px] rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-xs transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+            >
+              Semak Emel
+            </button>
+            <button
+              id="btnResetSearch"
+              type="button"
+              class="min-h-[44px] rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            >
+              Set Semula Carian
+            </button>
+          </div>
+        </form>
+
+        <div id="searchFeedback" class="mt-4 hidden" aria-live="polite"></div>
+      </section>
+
+      <section id="resultsSection" aria-labelledby="resultsHeading" class="hidden space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="resultsHeading" class="text-base font-bold text-slate-900 sm:text-lg">Keputusan Semakan Akaun</h2>
+          <span id="resultsCountBadge" class="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">0 Akaun Ditemui</span>
+        </div>
+        <div id="resultsContainer" class="space-y-4"></div>
+      </section>
+
+      <section aria-labelledby="migrationHeading" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="min-w-0">
+            <h2 id="migrationHeading" class="text-sm font-bold text-slate-900 sm:text-base">Pengurusan Sandaran &amp; Pemulihan Data (JSON)</h2>
+            <p class="mt-0.5 text-xs text-slate-500">Eksport dan import 1-ke-1 pangkalan data menggunakan format fail tunggal .json sahaja.</p>
+          </div>
+          <button
+            id="toggleMigrationPanel"
+            type="button"
+            aria-expanded="false"
+            aria-controls="migrationPanel"
+            class="min-h-[44px] shrink-0 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Buka Panel Sandaran
+          </button>
+        </div>
+
+        <div id="migrationPanel" class="mt-5 hidden space-y-5 border-t border-slate-100 pt-5">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <h3 class="text-sm font-bold text-slate-900">1. Eksport Sandaran Penuh (.json)</h3>
+              <p class="mt-1 text-xs text-slate-600">Muat turun semua jadual sistem mengikut susunan kebergantungan ke dalam satu fail .json.</p>
+              <button
+                id="btnExportJson"
+                type="button"
+                class="mt-4 min-h-[44px] w-full rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-slate-800 sm:w-auto"
+              >
+                Eksport Fail JSON
+              </button>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <h3 class="text-sm font-bold text-slate-900">2. Import &amp; Pulih Data (.json)</h3>
+              <p class="mt-1 text-xs text-slate-600">Pilih fail sandaran .json untuk pengesahan skema, pemulihan upsert, dan penyelarasan jujukan ID.</p>
+              <div class="mt-3 space-y-3">
+                <label for="importJsonInput" class="sr-only">Pilih fail sandaran JSON</label>
+                <input
+                  id="importJsonInput"
+                  type="file"
+                  accept=".json,application/json"
+                  class="block min-h-[44px] w-full rounded-xl border border-slate-300 bg-white p-1.5 text-xs text-slate-700"
+                >
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    id="btnImportJson"
+                    type="button"
+                    class="min-h-[44px] rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+                  >
+                    Import &amp; Pulihkan
+                  </button>
+                  <button
+                    id="btnCancelMigration"
+                    type="button"
+                    class="hidden min-h-[44px] rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                  >
+                    Batal Operasi
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="migrationProgressWrap" class="hidden space-y-1.5">
+            <div class="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+              <div id="migrationProgressBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" class="h-full rounded-full bg-blue-600" style="width: 0%"></div>
+            </div>
+            <p id="migrationProgressText" class="text-xs font-medium text-slate-600">Menunggu...</p>
+          </div>
+
+          <div id="migrationStatusBox" aria-live="polite"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="border-t border-slate-200 bg-white">
+      <div class="mx-auto flex w-full max-w-5xl flex-col items-center justify-between gap-2 px-4 py-4 text-center text-xs text-slate-500 sm:flex-row sm:px-6 sm:text-left">
+        <p>Portal Semakan &amp; Pengesahan Emel Rasmi @melaka.my</p>
+        <p>Carian dilindungi privasi &bull; Pengesahan makluman masa nyata</p>
+      </div>
+    </footer>
+  </div>
+
+  <script src="config.js?v=1"></script>
+  <script src="idb-cache.js?v=1"></script>
+  <script src="realtime.js?v=1"></script>
+  <script src="migration.js?v=1"></script>
+  <script src="app.js?v=1"></script>
+</body>
+</html>
