@@ -14,7 +14,9 @@
     statsSekolahFilter: "",
     searchAbortController: null,
     isSearching: false,
-    pendingConfirmIds: new Set()
+    pendingConfirmIds: new Set(),
+    adminUser: null,
+    isAuthenticatingAdmin: false
   };
 
   const dom = {};
@@ -57,6 +59,27 @@
     dom.migrationProgressBar = document.getElementById("migrationProgressBar");
     dom.migrationProgressText = document.getElementById("migrationProgressText");
     dom.migrationStatusBox = document.getElementById("migrationStatusBox");
+
+    dom.btnOpenAdminLogin = document.getElementById("btnOpenAdminLogin");
+    dom.adminBadgeWrap = document.getElementById("adminBadgeWrap");
+    dom.adminEmailDisplay = document.getElementById("adminEmailDisplay");
+    dom.btnAdminLogout = document.getElementById("btnAdminLogout");
+    dom.adminLoginModal = document.getElementById("adminLoginModal");
+    dom.btnCloseAdminModal = document.getElementById("btnCloseAdminModal");
+    dom.adminLoginForm = document.getElementById("adminLoginForm");
+    dom.adminLoginEmail = document.getElementById("adminLoginEmail");
+    dom.adminLoginPassword = document.getElementById("adminLoginPassword");
+    dom.btnSubmitAdminLogin = document.getElementById("btnSubmitAdminLogin");
+    dom.adminLoginFeedback = document.getElementById("adminLoginFeedback");
+
+    dom.adminWorkspaceSection = document.getElementById("adminWorkspaceSection");
+    dom.importCsvInput = document.getElementById("importCsvInput");
+    dom.btnImportCsv = document.getElementById("btnImportCsv");
+    dom.btnCancelCsv = document.getElementById("btnCancelCsv");
+    dom.csvProgressWrap = document.getElementById("csvProgressWrap");
+    dom.csvProgressBar = document.getElementById("csvProgressBar");
+    dom.csvProgressText = document.getElementById("csvProgressText");
+    dom.csvStatusBox = document.getElementById("csvStatusBox");
   }
 
   function formatNumber(value) {
@@ -904,6 +927,243 @@
     }
   }
 
+  function applyAdminSessionState(user) {
+    state.adminUser = user || null;
+    const isAdmin = Boolean(state.adminUser);
+
+    if (dom.btnOpenAdminLogin) {
+      if (isAdmin) {
+        dom.btnOpenAdminLogin.classList.add("hidden");
+      } else {
+        dom.btnOpenAdminLogin.classList.remove("hidden");
+      }
+    }
+
+    if (dom.adminBadgeWrap) {
+      if (isAdmin) {
+        dom.adminBadgeWrap.classList.remove("hidden");
+      } else {
+        dom.adminBadgeWrap.classList.add("hidden");
+      }
+    }
+
+    if (dom.adminEmailDisplay) {
+      dom.adminEmailDisplay.textContent = isAdmin && state.adminUser.email
+        ? state.adminUser.email
+        : "";
+    }
+
+    if (dom.adminWorkspaceSection) {
+      if (isAdmin) {
+        dom.adminWorkspaceSection.classList.remove("hidden");
+      } else {
+        dom.adminWorkspaceSection.classList.add("hidden");
+      }
+    }
+  }
+
+  async function syncAdminSessionFromSupabase() {
+    if (typeof window.getAuthenticatedAdmin !== "function") {
+      applyAdminSessionState(null);
+      return null;
+    }
+    try {
+      const adminUser = await window.getAuthenticatedAdmin();
+      applyAdminSessionState(adminUser);
+      return adminUser;
+    } catch (_) {
+      applyAdminSessionState(null);
+      return null;
+    }
+  }
+
+  function openAdminLoginModal() {
+    if (!dom.adminLoginModal) {
+      return;
+    }
+    showAlertBox(dom.adminLoginFeedback, "", "");
+    dom.adminLoginModal.classList.remove("hidden");
+    if (dom.adminLoginEmail) {
+      dom.adminLoginEmail.focus();
+    }
+  }
+
+  function closeAdminLoginModal() {
+    if (!dom.adminLoginModal) {
+      return;
+    }
+    dom.adminLoginModal.classList.add("hidden");
+    if (dom.adminLoginPassword) {
+      dom.adminLoginPassword.value = "";
+    }
+    showAlertBox(dom.adminLoginFeedback, "", "");
+  }
+
+  async function handleAdminLoginSubmit(event) {
+    event.preventDefault();
+    if (state.isAuthenticatingAdmin) {
+      return;
+    }
+
+    const emailVal = dom.adminLoginEmail ? String(dom.adminLoginEmail.value || "").trim() : "";
+    const passwordVal = dom.adminLoginPassword ? String(dom.adminLoginPassword.value || "") : "";
+
+    if (!emailVal || !passwordVal) {
+      showAlertBox(dom.adminLoginFeedback, "error", "Sila masukkan emel dan kata laluan Super Admin.");
+      return;
+    }
+
+    state.isAuthenticatingAdmin = true;
+    if (dom.btnSubmitAdminLogin) {
+      dom.btnSubmitAdminLogin.disabled = true;
+      dom.btnSubmitAdminLogin.textContent = "Mengesahkan...";
+    }
+
+    try {
+      await window.ENV_READY;
+      const supabase = await window.getSupabaseClient();
+      const signInRes = await supabase.auth.signInWithPassword({
+        email: emailVal,
+        password: passwordVal
+      });
+
+      if (signInRes.error) {
+        throw new Error("Pengesahan gagal: " + signInRes.error.message);
+      }
+
+      const verifiedAdmin = await syncAdminSessionFromSupabase();
+      if (!verifiedAdmin) {
+        throw new Error("Akaun tidak disahkan dalam auth.users Supabase.");
+      }
+
+      if (dom.adminLoginForm) {
+        dom.adminLoginForm.reset();
+      }
+      closeAdminLoginModal();
+      showAlertBox(
+        dom.globalBanner,
+        "success",
+        "Log masuk Super Admin berjaya (" + (verifiedAdmin.email || "auth.users") + "). Panel pentadbiran telah dibuka."
+      );
+    } catch (err) {
+      if (dom.adminLoginPassword) {
+        dom.adminLoginPassword.value = "";
+      }
+      showAlertBox(
+        dom.adminLoginFeedback,
+        "error",
+        err && err.message ? err.message : "Gagal mengesahkan akaun Super Admin."
+      );
+    } finally {
+      state.isAuthenticatingAdmin = false;
+      if (dom.btnSubmitAdminLogin) {
+        dom.btnSubmitAdminLogin.disabled = false;
+        dom.btnSubmitAdminLogin.textContent = "Log Masuk Admin";
+      }
+    }
+  }
+
+  async function handleAdminLogoutClick() {
+    try {
+      await window.ENV_READY;
+      const supabase = await window.getSupabaseClient();
+      await supabase.auth.signOut();
+    } catch (_) {}
+    applyAdminSessionState(null);
+    showAlertBox(dom.globalBanner, "info", "Sesi Super Admin telah ditamatkan.");
+  }
+
+  function updateCsvProgressUI(progressInfo) {
+    if (!dom.csvProgressWrap || !dom.csvProgressBar || !dom.csvProgressText) {
+      return;
+    }
+    dom.csvProgressWrap.classList.remove("hidden");
+    const pct = typeof progressInfo.percent === "number" ? progressInfo.percent : 0;
+    dom.csvProgressBar.style.width = pct + "%";
+    dom.csvProgressBar.setAttribute("aria-valuenow", String(pct));
+    dom.csvProgressText.textContent = (progressInfo.message || "Memproses...") + " (" + pct + "%)";
+  }
+
+  function setCsvControlsBusy(isBusy) {
+    if (dom.btnImportCsv) {
+      dom.btnImportCsv.disabled = isBusy;
+    }
+    if (dom.importCsvInput) {
+      dom.importCsvInput.disabled = isBusy;
+    }
+    if (dom.btnCancelCsv) {
+      if (isBusy) {
+        dom.btnCancelCsv.classList.remove("hidden");
+      } else {
+        dom.btnCancelCsv.classList.add("hidden");
+      }
+    }
+  }
+
+  async function handleImportCsvClick() {
+    const importer = window.CsvImporter;
+    if (!importer || importer.isBusy()) {
+      return;
+    }
+
+    if (!state.adminUser) {
+      importer.renderStatusMessage(
+        dom.csvStatusBox,
+        "error",
+        "Akses tidak dibenarkan.",
+        ["Hanya Super Admin berdaftar dalam auth.users dibenarkan memuat naik CSV."]
+      );
+      return;
+    }
+
+    const file = dom.importCsvInput && dom.importCsvInput.files ? dom.importCsvInput.files[0] : null;
+    if (!file) {
+      importer.renderStatusMessage(
+        dom.csvStatusBox,
+        "error",
+        "Tiada fail CSV dipilih.",
+        ["Sila pilih fail berformat .csv terlebih dahulu."]
+      );
+      return;
+    }
+
+    setCsvControlsBusy(true);
+    importer.renderStatusMessage(dom.csvStatusBox, "info", "Memulakan muat naik dan kemas kini CSV...", []);
+
+    try {
+      const result = await importer.importCsvFile(file, {
+        onProgress: updateCsvProgressUI,
+        onCompleted: async function () {
+          await loadSchools(true);
+          await loadDashboardStats(true);
+          if (state.activeSearchNoKp) {
+            await executeSearch(state.activeSearchNoKp, state.activeSearchSekolah, true);
+          }
+        }
+      });
+
+      if (dom.importCsvInput) {
+        dom.importCsvInput.value = "";
+      }
+
+      importer.renderStatusMessage(
+        dom.csvStatusBox,
+        "success",
+        "Kemas kini data CSV selesai sepenuhnya.",
+        [
+          "Jumlah baris CSV diproses: " + formatNumber(result.rows_processed || 0),
+          "Sekolah baharu ditambah: " + formatNumber(result.schools_inserted || 0),
+          "Rekod pengguna dikemas kini: " + formatNumber(result.users_upserted || 0)
+        ]
+      );
+    } catch (err) {
+      const msg = err && err.message ? err.message : "Muat naik CSV gagal.";
+      importer.renderStatusMessage(dom.csvStatusBox, "error", "Muat naik CSV gagal.", [msg]);
+    } finally {
+      setCsvControlsBusy(false);
+    }
+  }
+
   function bindEventListeners() {
     if (dom.searchNoKpInput) {
       dom.searchNoKpInput.addEventListener("input", function () {
@@ -981,6 +1241,42 @@
         }
       });
     }
+
+    if (dom.btnOpenAdminLogin) {
+      dom.btnOpenAdminLogin.addEventListener("click", openAdminLoginModal);
+    }
+
+    if (dom.btnCloseAdminModal) {
+      dom.btnCloseAdminModal.addEventListener("click", closeAdminLoginModal);
+    }
+
+    if (dom.adminLoginModal) {
+      dom.adminLoginModal.addEventListener("click", function (event) {
+        if (event.target === dom.adminLoginModal) {
+          closeAdminLoginModal();
+        }
+      });
+    }
+
+    if (dom.adminLoginForm) {
+      dom.adminLoginForm.addEventListener("submit", handleAdminLoginSubmit);
+    }
+
+    if (dom.btnAdminLogout) {
+      dom.btnAdminLogout.addEventListener("click", handleAdminLogoutClick);
+    }
+
+    if (dom.btnImportCsv) {
+      dom.btnImportCsv.addEventListener("click", handleImportCsvClick);
+    }
+
+    if (dom.btnCancelCsv) {
+      dom.btnCancelCsv.addEventListener("click", function () {
+        if (window.CsvImporter && typeof window.CsvImporter.cancelActiveImport === "function") {
+          window.CsvImporter.cancelActiveImport();
+        }
+      });
+    }
   }
 
   async function bootstrapApplication() {
@@ -989,7 +1285,16 @@
 
     try {
       await window.ENV_READY;
-      await window.getSupabaseClient();
+      const supabase = await window.getSupabaseClient();
+
+      await syncAdminSessionFromSupabase();
+
+      if (supabase && supabase.auth && typeof supabase.auth.onAuthStateChange === "function") {
+        supabase.auth.onAuthStateChange(function (_event, session) {
+          const sessionUser = session && session.user ? session.user : null;
+          applyAdminSessionState(sessionUser);
+        });
+      }
 
       await Promise.all([
         loadSchools(false),

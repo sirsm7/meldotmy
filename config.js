@@ -4,6 +4,37 @@
   const CONFIG_ENDPOINT = "/api/config";
   const FETCH_TIMEOUT_MS = 10000;
   let supabaseClientInstance = null;
+  const fallbackMemoryStorage = Object.create(null);
+
+  function createSafeAuthStorage() {
+    let canUseLocalStorage = false;
+    try {
+      const testKey = "__meldotmy_storage_probe__";
+      window.localStorage.setItem(testKey, "1");
+      window.localStorage.removeItem(testKey);
+      canUseLocalStorage = true;
+    } catch (_) {
+      canUseLocalStorage = false;
+    }
+
+    if (canUseLocalStorage) {
+      return window.localStorage;
+    }
+
+    return {
+      getItem: function (key) {
+        return Object.prototype.hasOwnProperty.call(fallbackMemoryStorage, key)
+          ? fallbackMemoryStorage[key]
+          : null;
+      },
+      setItem: function (key, value) {
+        fallbackMemoryStorage[key] = String(value);
+      },
+      removeItem: function (key) {
+        delete fallbackMemoryStorage[key];
+      }
+    };
+  }
 
   async function loadEnvironmentConfig() {
     const controller = new AbortController();
@@ -81,12 +112,28 @@
       env.SUPABASE_ANON_KEY,
       {
         auth: {
-          persistSession: false,
-          autoRefreshToken: false
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: false,
+          storageKey: "meldotmy-superadmin-auth",
+          storage: createSafeAuthStorage()
         }
       }
     );
     window._supabase = supabaseClientInstance;
     return supabaseClientInstance;
+  };
+
+  window.getAuthenticatedAdmin = async function () {
+    const supabase = await window.getSupabaseClient();
+    const sessionRes = await supabase.auth.getSession();
+    if (sessionRes.error || !sessionRes.data || !sessionRes.data.session) {
+      return null;
+    }
+    const userRes = await supabase.auth.getUser();
+    if (userRes.error || !userRes.data || !userRes.data.user) {
+      return null;
+    }
+    return userRes.data.user;
   };
 })();

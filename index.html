@@ -17,10 +17,36 @@
           <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Negeri Melaka</p>
           <h1 class="mt-0.5 text-lg font-bold text-slate-900 sm:text-xl">Portal Semakan &amp; Pengesahan Emel @melaka.my</h1>
         </div>
-        <span id="realtimeStatusBadge" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-          <span class="h-2 w-2 rounded-full bg-slate-400"></span>
-          Sedia
-        </span>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <span id="realtimeStatusBadge" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+            <span class="h-2 w-2 rounded-full bg-slate-400"></span>
+            Sedia
+          </span>
+
+          <button
+            id="btnOpenAdminLogin"
+            type="button"
+            class="min-h-[44px] rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          >
+            Log Masuk Admin
+          </button>
+
+          <div id="adminBadgeWrap" class="hidden flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-1.5">
+            <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-800">
+              <span class="h-2 w-2 rounded-full bg-blue-600"></span>
+              <span>Admin:</span>
+              <span id="adminEmailDisplay" class="max-w-[160px] truncate font-mono text-blue-900 sm:max-w-[220px]"></span>
+            </span>
+            <button
+              id="btnAdminLogout"
+              type="button"
+              class="min-h-[36px] rounded-lg border border-blue-300 bg-white px-2.5 py-1 text-xs font-semibold text-blue-800 transition hover:bg-blue-100"
+            >
+              Log Keluar
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -168,79 +194,198 @@
         <div id="resultsContainer" class="space-y-4"></div>
       </section>
 
-      <section aria-labelledby="migrationHeading" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="min-w-0">
-            <h2 id="migrationHeading" class="text-sm font-bold text-slate-900 sm:text-base">Pengurusan Sandaran &amp; Pemulihan Data (JSON)</h2>
-            <p class="mt-0.5 text-xs text-slate-500">Eksport dan import 1-ke-1 pangkalan data menggunakan format fail tunggal .json sahaja.</p>
+      <div id="adminWorkspaceSection" class="hidden space-y-6">
+        <section aria-labelledby="csvUploadHeading" class="rounded-2xl border border-blue-200 bg-white p-5 shadow-xs sm:p-6">
+          <div class="border-b border-slate-100 pb-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h2 id="csvUploadHeading" class="text-sm font-bold text-slate-900 sm:text-base">Muat Naik &amp; Kemas Kini Data Pukal (CSV)</h2>
+              <span class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">Super Admin Sahaja</span>
+            </div>
+            <p class="mt-1 text-xs text-slate-600">
+              Muat naik fail <span class="font-mono font-semibold">.csv</span> (lajur wajib: <span class="font-mono">nama_penuh, no_kp, username, jenis_id, nama_sekolah</span>) untuk menambah rekod baharu atau mengemas kini maklumat sedia ada tanpa memadam status pengesahan pengguna.
+            </p>
           </div>
-          <button
-            id="toggleMigrationPanel"
-            type="button"
-            aria-expanded="false"
-            aria-controls="migrationPanel"
-            class="min-h-[44px] shrink-0 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-          >
-            Buka Panel Sandaran
-          </button>
-        </div>
 
-        <div id="migrationPanel" class="mt-5 hidden space-y-5 border-t border-slate-100 pt-5">
-          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-              <h3 class="text-sm font-bold text-slate-900">1. Eksport Sandaran Penuh (.json)</h3>
-              <p class="mt-1 text-xs text-slate-600">Muat turun semua jadual sistem mengikut susunan kebergantungan ke dalam satu fail .json.</p>
-              <button
-                id="btnExportJson"
-                type="button"
-                class="mt-4 min-h-[44px] w-full rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-slate-800 sm:w-auto"
+          <div class="mt-4 space-y-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <label for="importCsvInput" class="sr-only">Pilih fail CSV untuk muat naik</label>
+              <input
+                id="importCsvInput"
+                type="file"
+                accept=".csv,text/csv"
+                class="block min-h-[44px] w-full flex-1 rounded-xl border border-slate-300 bg-slate-50/60 p-1.5 text-xs text-slate-700"
               >
-                Eksport Fail JSON
-              </button>
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  id="btnImportCsv"
+                  type="button"
+                  class="min-h-[44px] shrink-0 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+                >
+                  Muat Naik &amp; Kemas Kini CSV
+                </button>
+                <button
+                  id="btnCancelCsv"
+                  type="button"
+                  class="hidden min-h-[44px] shrink-0 rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                >
+                  Batal CSV
+                </button>
+              </div>
             </div>
 
-            <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-              <h3 class="text-sm font-bold text-slate-900">2. Import &amp; Pulih Data (.json)</h3>
-              <p class="mt-1 text-xs text-slate-600">Pilih fail sandaran .json untuk pengesahan skema, pemulihan upsert, dan penyelarasan jujukan ID.</p>
-              <div class="mt-3 space-y-3">
-                <label for="importJsonInput" class="sr-only">Pilih fail sandaran JSON</label>
-                <input
-                  id="importJsonInput"
-                  type="file"
-                  accept=".json,application/json"
-                  class="block min-h-[44px] w-full rounded-xl border border-slate-300 bg-white p-1.5 text-xs text-slate-700"
+            <div id="csvProgressWrap" class="hidden space-y-1.5">
+              <div class="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+                <div id="csvProgressBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" class="h-full rounded-full bg-blue-600" style="width: 0%"></div>
+              </div>
+              <p id="csvProgressText" class="text-xs font-medium text-slate-600">Menunggu...</p>
+            </div>
+
+            <div id="csvStatusBox" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <section aria-labelledby="migrationHeading" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 id="migrationHeading" class="text-sm font-bold text-slate-900 sm:text-base">Pengurusan Sandaran &amp; Pemulihan Data (JSON)</h2>
+                <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">Super Admin Sahaja</span>
+              </div>
+              <p class="mt-0.5 text-xs text-slate-500">Eksport dan import 1-ke-1 pangkalan data menggunakan format fail tunggal .json sahaja.</p>
+            </div>
+            <button
+              id="toggleMigrationPanel"
+              type="button"
+              aria-expanded="false"
+              aria-controls="migrationPanel"
+              class="min-h-[44px] shrink-0 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+            >
+              Buka Panel Sandaran
+            </button>
+          </div>
+
+          <div id="migrationPanel" class="mt-5 hidden space-y-5 border-t border-slate-100 pt-5">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <h3 class="text-sm font-bold text-slate-900">1. Eksport Sandaran Penuh (.json)</h3>
+                <p class="mt-1 text-xs text-slate-600">Muat turun semua jadual sistem mengikut susunan kebergantungan ke dalam satu fail .json.</p>
+                <button
+                  id="btnExportJson"
+                  type="button"
+                  class="mt-4 min-h-[44px] w-full rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-slate-800 sm:w-auto"
                 >
-                <div class="flex flex-wrap items-center gap-2">
-                  <button
-                    id="btnImportJson"
-                    type="button"
-                    class="min-h-[44px] rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+                  Eksport Fail JSON
+                </button>
+              </div>
+
+              <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <h3 class="text-sm font-bold text-slate-900">2. Import &amp; Pulih Data (.json)</h3>
+                <p class="mt-1 text-xs text-slate-600">Pilih fail sandaran .json untuk pengesahan skema, pemulihan upsert, dan penyelarasan jujukan ID.</p>
+                <div class="mt-3 space-y-3">
+                  <label for="importJsonInput" class="sr-only">Pilih fail sandaran JSON</label>
+                  <input
+                    id="importJsonInput"
+                    type="file"
+                    accept=".json,application/json"
+                    class="block min-h-[44px] w-full rounded-xl border border-slate-300 bg-white p-1.5 text-xs text-slate-700"
                   >
-                    Import &amp; Pulihkan
-                  </button>
-                  <button
-                    id="btnCancelMigration"
-                    type="button"
-                    class="hidden min-h-[44px] rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
-                  >
-                    Batal Operasi
-                  </button>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button
+                      id="btnImportJson"
+                      type="button"
+                      class="min-h-[44px] rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+                    >
+                      Import &amp; Pulihkan
+                    </button>
+                    <button
+                      id="btnCancelMigration"
+                      type="button"
+                      class="hidden min-h-[44px] rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                    >
+                      Batal Operasi
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div id="migrationProgressWrap" class="hidden space-y-1.5">
-            <div class="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
-              <div id="migrationProgressBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" class="h-full rounded-full bg-blue-600" style="width: 0%"></div>
+            <div id="migrationProgressWrap" class="hidden space-y-1.5">
+              <div class="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+                <div id="migrationProgressBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" class="h-full rounded-full bg-blue-600" style="width: 0%"></div>
+              </div>
+              <p id="migrationProgressText" class="text-xs font-medium text-slate-600">Menunggu...</p>
             </div>
-            <p id="migrationProgressText" class="text-xs font-medium text-slate-600">Menunggu...</p>
+
+            <div id="migrationStatusBox" aria-live="polite"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <div
+      id="adminLoginModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="adminModalTitle"
+      class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+    >
+      <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+        <div class="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <h2 id="adminModalTitle" class="text-base font-bold text-slate-900 sm:text-lg">Log Masuk Super Admin</h2>
+            <p class="mt-0.5 text-xs text-slate-500">Hanya pentadbir berdaftar dalam Supabase Auth dibenarkan mengakses panel pengurusan data.</p>
+          </div>
+          <button
+            id="btnCloseAdminModal"
+            type="button"
+            aria-label="Tutup dialog log masuk"
+            class="min-h-[40px] min-w-[40px] rounded-xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-600 transition hover:bg-slate-100"
+          >
+            &times;
+          </button>
+        </div>
+
+        <form id="adminLoginForm" class="mt-4 space-y-4" novalidate>
+          <div>
+            <label for="adminLoginEmail" class="block text-xs font-semibold text-slate-700 sm:text-sm">Emel Pentadbir</label>
+            <input
+              id="adminLoginEmail"
+              name="email"
+              type="email"
+              required
+              autocomplete="username"
+              placeholder="admin@melaka.my"
+              class="mt-1.5 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
           </div>
 
-          <div id="migrationStatusBox" aria-live="polite"></div>
-        </div>
-      </section>
-    </main>
+          <div>
+            <label for="adminLoginPassword" class="block text-xs font-semibold text-slate-700 sm:text-sm">Kata Laluan</label>
+            <input
+              id="adminLoginPassword"
+              name="password"
+              type="password"
+              required
+              autocomplete="current-password"
+              placeholder="Masukkan kata laluan"
+              class="mt-1.5 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+          </div>
+
+          <div id="adminLoginFeedback" class="hidden" aria-live="polite"></div>
+
+          <div class="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+            <button
+              id="btnSubmitAdminLogin"
+              type="submit"
+              class="min-h-[44px] w-full rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-auto"
+            >
+              Log Masuk Admin
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <footer class="border-t border-slate-200 bg-white">
       <div class="mx-auto flex w-full max-w-5xl flex-col items-center justify-between gap-2 px-4 py-4 text-center text-xs text-slate-500 sm:flex-row sm:px-6 sm:text-left">
@@ -250,10 +395,11 @@
     </footer>
   </div>
 
-  <script src="config.js?v=1"></script>
+  <script src="config.js?v=2"></script>
   <script src="idb-cache.js?v=1"></script>
   <script src="realtime.js?v=1"></script>
   <script src="migration.js?v=1"></script>
-  <script src="app.js?v=1"></script>
+  <script src="csv-importer.js?v=1"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
