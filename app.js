@@ -545,9 +545,8 @@
 
   async function copyEmailToClipboard(emailText, buttonEl) {
     if (!emailText) {
-      return;
+      return false;
     }
-    const originalText = buttonEl ? buttonEl.textContent : "Salin Emel";
 
     try {
       if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
@@ -566,14 +565,25 @@
 
       if (buttonEl) {
         buttonEl.textContent = "Emel Disalin";
-        buttonEl.classList.add("border-emerald-300", "bg-emerald-50", "text-emerald-700");
-        window.setTimeout(function () {
-          buttonEl.textContent = originalText;
-          buttonEl.classList.remove("border-emerald-300", "bg-emerald-50", "text-emerald-700");
-        }, 2000);
+        buttonEl.classList.remove(
+          "border-slate-300",
+          "bg-white",
+          "text-slate-700",
+          "hover:bg-slate-100",
+          "focus:ring-blue-500"
+        );
+        buttonEl.classList.add(
+          "border-emerald-600",
+          "bg-emerald-600",
+          "text-white",
+          "hover:bg-emerald-700",
+          "focus:ring-emerald-500"
+        );
       }
+      return true;
     } catch (_) {
       showAlertBox(dom.searchFeedback, "warning", "Tidak dapat menyalin secara automatik. Sila salin alamat emel secara manual.");
+      return false;
     }
   }
 
@@ -765,9 +775,6 @@
       copyBtn.type = "button";
       copyBtn.className = "min-h-[44px] shrink-0 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500";
       copyBtn.textContent = "Salin Emel";
-      copyBtn.addEventListener("click", function () {
-        copyEmailToClipboard(fullEmail, copyBtn);
-      });
       emailActionRow.appendChild(copyBtn);
 
       emailBox.appendChild(emailActionRow);
@@ -804,6 +811,16 @@
       labelEl.appendChild(checkboxEl);
       labelEl.appendChild(labelTextWrap);
       confirmWrap.appendChild(labelEl);
+
+      copyBtn.addEventListener("click", async function () {
+        const isFirstCopyClick = copyBtn.dataset.copyTriggered !== "true";
+        copyBtn.dataset.copyTriggered = "true";
+        await copyEmailToClipboard(fullEmail, copyBtn);
+        if (isFirstCopyClick && !checkboxEl.checked && !checkboxEl.disabled) {
+          checkboxEl.checked = true;
+          handleConfirmationToggle(record, checkboxEl, statusBadge, timestampEl);
+        }
+      });
 
       checkboxEl.addEventListener("change", function () {
         handleConfirmationToggle(record, checkboxEl, statusBadge, timestampEl);
