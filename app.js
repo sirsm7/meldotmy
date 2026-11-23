@@ -973,6 +973,9 @@
       return;
     }
     const incoming = changeEvent.newRecord;
+    if (state.adminUser && window.AdminDrilldown && typeof window.AdminDrilldown.refreshIfOpen === "function") {
+      window.AdminDrilldown.refreshIfOpen().catch(function () {});
+    }
     if (!state.searchResults || state.searchResults.length === 0) {
       return;
     }
@@ -1094,6 +1097,9 @@
           if (state.activeSearchNoKp) {
             await executeSearch(state.activeSearchNoKp, true);
           }
+          if (window.AdminDrilldown && typeof window.AdminDrilldown.refreshIfOpen === "function") {
+            await window.AdminDrilldown.refreshIfOpen();
+          }
         }
       });
 
@@ -1151,6 +1157,10 @@
       } else {
         dom.adminWorkspaceSection.classList.add("hidden");
       }
+    }
+
+    if (window.AdminDrilldown && typeof window.AdminDrilldown.setAdminEnabled === "function") {
+      window.AdminDrilldown.setAdminEnabled(isAdmin);
     }
   }
 
@@ -1330,6 +1340,9 @@
           await loadDashboardStats(true);
           if (state.activeSearchNoKp) {
             await executeSearch(state.activeSearchNoKp, true);
+          }
+          if (window.AdminDrilldown && typeof window.AdminDrilldown.refreshIfOpen === "function") {
+            await window.AdminDrilldown.refreshIfOpen();
           }
         }
       });
@@ -1555,6 +1568,14 @@
   async function bootstrapApplication() {
     cacheDomReferences();
     bindEventListeners();
+
+    if (window.AdminDrilldown && typeof window.AdminDrilldown.init === "function") {
+      window.AdminDrilldown.init({
+        getSchoolScope: function () {
+          return state.statsSekolahFilter;
+        }
+      });
+    }
 
     try {
       await window.ENV_READY;
