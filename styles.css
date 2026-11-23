@@ -72,31 +72,6 @@ select:disabled {
   outline-offset: 2px;
 }
 
-#sekolahAutocompleteList {
-  max-height: min(16rem, 45dvh);
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 #f8fafc;
-}
-
-#sekolahAutocompleteList::-webkit-scrollbar {
-  width: 6px;
-}
-
-#sekolahAutocompleteList::-webkit-scrollbar-track {
-  background: #f8fafc;
-}
-
-#sekolahAutocompleteList::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 9999px;
-}
-
-#sekolahAutocompleteList [data-school-option] {
-  min-height: 44px;
-}
-
 #statProgressBar,
 #migrationProgressBar,
 #csvProgressBar {
