@@ -2,6 +2,8 @@
   "use strict";
 
   const EMAIL_DOMAIN = "@melaka.my";
+  const EMAIL_LOGIN_URL = "https://email.melaka.my/auth/login.html";
+  const DEFAULT_EMAIL_PASSWORD = "Email@26";
   const SEKOLAH_CACHE_TTL_MS = 30 * 60 * 1000;
   const STATS_CACHE_TTL_MS = 2 * 60 * 1000;
 
@@ -543,48 +545,73 @@
     renderDashboardStats(freshStats);
   }
 
+  async function writeTextToClipboard(textValue) {
+    if (!textValue) {
+      return false;
+    }
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      try {
+        await navigator.clipboard.writeText(textValue);
+        return true;
+      } catch (_) {}
+    }
+    try {
+      const tempInput = document.createElement("input");
+      tempInput.value = textValue;
+      tempInput.setAttribute("readonly", "");
+      tempInput.style.position = "fixed";
+      tempInput.style.opacity = "0";
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      const copied = document.execCommand("copy");
+      document.body.removeChild(tempInput);
+      return Boolean(copied);
+    } catch (_) {
+      return false;
+    }
+  }
+
   async function copyEmailToClipboard(emailText, buttonEl) {
     if (!emailText) {
       return false;
     }
 
-    try {
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-        await navigator.clipboard.writeText(emailText);
-      } else {
-        const tempInput = document.createElement("input");
-        tempInput.value = emailText;
-        tempInput.setAttribute("readonly", "");
-        tempInput.style.position = "fixed";
-        tempInput.style.opacity = "0";
-        document.body.appendChild(tempInput);
-        tempInput.select();
-        document.execCommand("copy");
-        document.body.removeChild(tempInput);
-      }
-
-      if (buttonEl) {
-        buttonEl.textContent = "Emel Disalin";
-        buttonEl.classList.remove(
-          "border-slate-300",
-          "bg-white",
-          "text-slate-700",
-          "hover:bg-slate-100",
-          "focus:ring-blue-500"
-        );
-        buttonEl.classList.add(
-          "border-emerald-600",
-          "bg-emerald-600",
-          "text-white",
-          "hover:bg-emerald-700",
-          "focus:ring-emerald-500"
-        );
-      }
-      return true;
-    } catch (_) {
+    const copied = await writeTextToClipboard(emailText);
+    if (!copied) {
       showAlertBox(dom.searchFeedback, "warning", "Tidak dapat menyalin secara automatik. Sila salin alamat emel secara manual.");
       return false;
     }
+
+    if (buttonEl) {
+      buttonEl.textContent = "Emel Disalin";
+      buttonEl.classList.remove(
+        "border-slate-300",
+        "bg-white",
+        "text-slate-700",
+        "hover:bg-slate-100",
+        "focus:ring-blue-500"
+      );
+      buttonEl.classList.add(
+        "border-emerald-600",
+        "bg-emerald-600",
+        "text-white",
+        "hover:bg-emerald-700",
+        "focus:ring-emerald-500"
+      );
+
+      const emailBoxEl = buttonEl.closest('[data-role="email-box"]');
+      if (emailBoxEl) {
+        const noticeEl = emailBoxEl.querySelector('[data-role="pre-copy-notice"]');
+        if (noticeEl) {
+          noticeEl.classList.add("hidden");
+        }
+        const accessPanelEl = emailBoxEl.querySelector('[data-role="login-access-panel"]');
+        if (accessPanelEl) {
+          accessPanelEl.classList.remove("hidden");
+        }
+      }
+    }
+    return true;
   }
 
   function resetCopyButtonUI(buttonEl) {
@@ -607,6 +634,34 @@
       "hover:bg-slate-100",
       "focus:ring-blue-500"
     );
+
+    const emailBoxEl = buttonEl.closest('[data-role="email-box"]');
+    if (emailBoxEl) {
+      const noticeEl = emailBoxEl.querySelector('[data-role="pre-copy-notice"]');
+      if (noticeEl) {
+        noticeEl.classList.remove("hidden");
+      }
+      const accessPanelEl = emailBoxEl.querySelector('[data-role="login-access-panel"]');
+      if (accessPanelEl) {
+        accessPanelEl.classList.add("hidden");
+      }
+      const copyPwdBtnEl = emailBoxEl.querySelector('[data-role="copy-password-btn"]');
+      if (copyPwdBtnEl) {
+        copyPwdBtnEl.textContent = "Salin Kata Laluan";
+        copyPwdBtnEl.classList.remove(
+          "border-emerald-600",
+          "bg-emerald-600",
+          "text-white",
+          "hover:bg-emerald-700"
+        );
+        copyPwdBtnEl.classList.add(
+          "border-slate-300",
+          "bg-white",
+          "text-slate-700",
+          "hover:bg-slate-100"
+        );
+      }
+    }
   }
 
   async function handleConfirmationToggle(record, checkboxEl, cardStatusBadgeEl, cardTimestampEl, copyBtnEl) {
@@ -771,6 +826,7 @@
       card.appendChild(topRow);
 
       const emailBox = document.createElement("div");
+      emailBox.setAttribute("data-role", "email-box");
       emailBox.className = "mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4";
 
       const emailLabel = document.createElement("p");
@@ -804,6 +860,60 @@
       emailActionRow.appendChild(copyBtn);
 
       emailBox.appendChild(emailActionRow);
+
+      const preCopyNotice = document.createElement("p");
+      preCopyNotice.setAttribute("data-role", "pre-copy-notice");
+      preCopyNotice.className = "mt-3 rounded-lg border border-blue-200 bg-blue-50/90 px-3 py-2 text-xs font-medium leading-relaxed text-blue-800";
+      preCopyNotice.textContent = "Makluman: Sila klik butang \"Salin Emel\" di atas untuk menyalin alamat emel anda serta memaparkan kata laluan lalai dan pautan terus ke laman log masuk emel @melaka.my.";
+      emailBox.appendChild(preCopyNotice);
+
+      const loginAccessPanel = document.createElement("div");
+      loginAccessPanel.setAttribute("data-role", "login-access-panel");
+      loginAccessPanel.className = "mt-3 hidden rounded-xl border border-emerald-200 bg-emerald-50/80 p-3.5";
+
+      const accessHeading = document.createElement("p");
+      accessHeading.className = "text-xs font-semibold text-emerald-900";
+      accessHeading.textContent = "Emel berjaya disalin! Sila teruskan log masuk ke akaun emel @melaka.my anda:";
+      loginAccessPanel.appendChild(accessHeading);
+
+      const passwordRow = document.createElement("div");
+      passwordRow.className = "mt-2 flex flex-col gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between";
+
+      const passwordInfo = document.createElement("p");
+      passwordInfo.className = "text-xs font-medium text-slate-700";
+      passwordInfo.appendChild(document.createTextNode("Kata Laluan Lalai: "));
+
+      const passwordCode = document.createElement("span");
+      passwordCode.className = "font-mono text-sm font-bold text-slate-900";
+      passwordCode.textContent = DEFAULT_EMAIL_PASSWORD;
+      passwordInfo.appendChild(passwordCode);
+      passwordRow.appendChild(passwordInfo);
+
+      const copyPwdBtn = document.createElement("button");
+      copyPwdBtn.type = "button";
+      copyPwdBtn.setAttribute("data-role", "copy-password-btn");
+      copyPwdBtn.className = "min-h-[36px] shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500";
+      copyPwdBtn.textContent = "Salin Kata Laluan";
+      copyPwdBtn.addEventListener("click", async function () {
+        const copiedPwd = await writeTextToClipboard(DEFAULT_EMAIL_PASSWORD);
+        if (copiedPwd) {
+          copyPwdBtn.textContent = "Kata Laluan Disalin";
+          copyPwdBtn.classList.remove("border-slate-300", "bg-white", "text-slate-700", "hover:bg-slate-100");
+          copyPwdBtn.classList.add("border-emerald-600", "bg-emerald-600", "text-white", "hover:bg-emerald-700");
+        }
+      });
+      passwordRow.appendChild(copyPwdBtn);
+      loginAccessPanel.appendChild(passwordRow);
+
+      const loginLinkBtn = document.createElement("a");
+      loginLinkBtn.href = EMAIL_LOGIN_URL;
+      loginLinkBtn.target = "_blank";
+      loginLinkBtn.rel = "noopener noreferrer";
+      loginLinkBtn.className = "mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-auto sm:text-sm";
+      loginLinkBtn.textContent = "Log Masuk Emel @melaka.my";
+      loginAccessPanel.appendChild(loginLinkBtn);
+
+      emailBox.appendChild(loginAccessPanel);
       card.appendChild(emailBox);
 
       const confirmWrap = document.createElement("div");
