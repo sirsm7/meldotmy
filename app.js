@@ -17,6 +17,9 @@
     searchAbortController: null,
     isSearching: false,
     pendingConfirmIds: new Set(),
+    pendingOtpIds: new Set(),
+    turnstileToken: "",
+    turnstileWidgetId: null,
     adminUser: null,
     isAuthenticatingAdmin: false
   };
@@ -41,6 +44,7 @@
 
     dom.searchForm = document.getElementById("searchForm");
     dom.searchNoKpInput = document.getElementById("searchNoKpInput");
+    dom.turnstileWrap = document.getElementById("turnstileWidgetWrap");
     dom.btnSearch = document.getElementById("btnSearch");
     dom.btnResetSearch = document.getElementById("btnResetSearch");
     dom.searchFeedback = document.getElementById("searchFeedback");
@@ -115,6 +119,86 @@
     }
     const uname = record && record.username ? String(record.username).trim().toLowerCase() : "";
     return uname ? uname + EMAIL_DOMAIN : "";
+  }
+
+  function maskEmail(rawEmail) {
+    const emailStr = String(rawEmail || "").trim().toLowerCase();
+    if (!emailStr || emailStr.indexOf("@") === -1) {
+      return "-";
+    }
+    const parts = emailStr.split("@");
+    const localPart = parts[0] || "";
+    const domainPart = parts[1] || "melaka.my";
+    if (localPart.indexOf("*") !== -1) {
+      return localPart + "@" + domainPart;
+    }
+    if (localPart.length <= 1) {
+      return "*@" + domainPart;
+    }
+    return localPart.slice(0, 1) + "***@" + domainPart;
+  }
+
+  function maskNoKp(rawValue) {
+    const rawStr = String(rawValue || "").trim();
+    if (!rawStr) {
+      return "-";
+    }
+    if (rawStr.indexOf("*") !== -1) {
+      return rawStr;
+    }
+    const digits = sanitizeNoKp(rawStr);
+    if (digits.length >= 6) {
+      return digits.slice(0, 6) + "******";
+    }
+    return "******";
+  }
+
+  function getTurnstileSiteKey() {
+    if (window.__ENV && typeof window.__ENV.TURNSTILE_SITE_KEY === "string") {
+      return window.__ENV.TURNSTILE_SITE_KEY.trim();
+    }
+    return "";
+  }
+
+  function resetTurnstileWidget() {
+    state.turnstileToken = "";
+    if (window.turnstile && state.turnstileWidgetId !== null && typeof window.turnstile.reset === "function") {
+      try {
+        window.turnstile.reset(state.turnstileWidgetId);
+      } catch (_) {}
+    }
+  }
+
+  function initTurnstileWidget() {
+    const siteKey = getTurnstileSiteKey();
+    if (!siteKey || !dom.turnstileWrap) {
+      return;
+    }
+    dom.turnstileWrap.classList.remove("hidden");
+    let attempts = 0;
+    const timer = window.setInterval(function () {
+      attempts += 1;
+      if (window.turnstile && typeof window.turnstile.render === "function") {
+        window.clearInterval(timer);
+        if (state.turnstileWidgetId === null) {
+          state.turnstileWidgetId = window.turnstile.render(dom.turnstileWrap, {
+            sitekey: siteKey,
+            theme: "light",
+            callback: function (token) {
+              state.turnstileToken = String(token || "");
+            },
+            "expired-callback": function () {
+              state.turnstileToken = "";
+            },
+            "error-callback": function () {
+              state.turnstileToken = "";
+            }
+          });
+        }
+      } else if (attempts >= 40) {
+        window.clearInterval(timer);
+      }
+    }, 250);
   }
 
   function clearElementChildren(el) {
@@ -664,15 +748,91 @@
     }
   }
 
-  async function handleConfirmationToggle(record, checkboxEl, cardStatusBadgeEl, cardTimestampEl, copyBtnEl) {
+  async function handleRequestOtp(record, requestOtpBtnEl, otpPanelEl, otpFeedbackEl) {
     const recordId = record && record.id;
-    if (!recordId || state.pendingConfirmIds.has(recordId)) {
+    const activeIc = sanitizeNoKp(state.activeSearchNoKp);
+    if (!recordId || activeIc.length !== 12 || state.pendingOtpIds.has(recordId)) {
       return;
     }
 
-    const nextChecked = Boolean(checkboxEl.checked);
+    state.pendingOtpIds.add(recordId);
+    if (requestOtpBtnEl) {
+      requestOtpBtnEl.disabled = true;
+      requestOtpBtnEl.textContent = "Menghantar Kod OTP...";
+    }
+
+    try {
+      await window.ENV_READY;
+      const supabase = await window.getSupabaseClient();
+
+      const response = await supabase.rpc("meldotmy_hantar_otp_maklum", {
+        p_id: record.id,
+        p_no_kp: activeIc
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      const payload = response.data && typeof response.data === "object" ? response.data : {};
+      if (otpPanelEl) {
+        otpPanelEl.classList.remove("hidden");
+      }
+      showAlertBox(
+        otpFeedbackEl,
+        "info",
+        payload.message || ("Kod pengesahan 6 digit telah dijana untuk " + maskEmail(buildFullEmail(record)) + ". Sila semak peti masuk emel anda (sah 10 minit).")
+      );
+
+      let remainingSec = 60;
+      if (requestOtpBtnEl) {
+        requestOtpBtnEl.textContent = "Hantar Semula (" + remainingSec + "s)";
+      }
+      const cooldownTimer = window.setInterval(function () {
+        remainingSec -= 1;
+        if (remainingSec <= 0) {
+          window.clearInterval(cooldownTimer);
+          state.pendingOtpIds.delete(recordId);
+          if (requestOtpBtnEl) {
+            requestOtpBtnEl.disabled = false;
+            requestOtpBtnEl.textContent = "Hantar Semula Kod OTP";
+          }
+        } else if (requestOtpBtnEl) {
+          requestOtpBtnEl.textContent = "Hantar Semula (" + remainingSec + "s)";
+        }
+      }, 1000);
+    } catch (err) {
+      state.pendingOtpIds.delete(recordId);
+      if (requestOtpBtnEl) {
+        requestOtpBtnEl.disabled = false;
+        requestOtpBtnEl.textContent = "Hantar Kod OTP ke Emel @melaka.my";
+      }
+      showAlertBox(
+        otpFeedbackEl,
+        "error",
+        "Gagal menghantar kod OTP: " + (err && err.message ? err.message : "Sila cuba sebentar lagi.")
+      );
+    }
+  }
+
+  async function handleVerifyOtpConfirmation(record, otpInputEl, verifyBtnEl, targetStatus, cardElements) {
+    const recordId = record && record.id;
+    const activeIc = sanitizeNoKp(state.activeSearchNoKp);
+    const otpCode = sanitizeNoKp(otpInputEl ? otpInputEl.value : "");
+
+    if (!recordId || activeIc.length !== 12 || state.pendingConfirmIds.has(recordId)) {
+      return;
+    }
+    if (otpCode.length !== 6) {
+      showAlertBox(cardElements.otpFeedbackEl, "error", "Sila masukkan 6 digit kod pengesahan OTP daripada emel @melaka.my anda.");
+      return;
+    }
+
     state.pendingConfirmIds.add(recordId);
-    checkboxEl.disabled = true;
+    if (verifyBtnEl) {
+      verifyBtnEl.disabled = true;
+      verifyBtnEl.textContent = "Mengesahkan...";
+    }
 
     try {
       await window.ENV_READY;
@@ -680,8 +840,9 @@
 
       const response = await supabase.rpc("meldotmy_sahkan_maklum", {
         p_id: record.id,
-        p_no_kp: record.no_kp,
-        p_sudah_maklum: nextChecked
+        p_no_kp: activeIc,
+        p_kod_otp: otpCode,
+        p_sudah_maklum: Boolean(targetStatus)
       });
 
       if (response.error) {
@@ -695,15 +856,42 @@
         throw new Error("Rekod pengesahan tidak ditemui.");
       }
 
+      record.no_kp = updated.no_kp || record.no_kp;
+      record.username = updated.username || record.username;
+      record.emel = updated.emel || record.emel;
       record.sudah_maklum = Boolean(updated.sudah_maklum);
       record.tarikh_maklum = updated.tarikh_maklum || null;
       record.updated_at = updated.updated_at || new Date().toISOString();
+      record._otpVerified = true;
 
       if (window.RealtimeSync && typeof window.RealtimeSync.trackRecord === "function") {
         window.RealtimeSync.trackRecord("meldotmy_pengguna", record);
       }
 
-      updateResultCardStatusUI(record, checkboxEl, cardStatusBadgeEl, cardTimestampEl, copyBtnEl);
+      if (cardElements.kpTextEl) {
+        cardElements.kpTextEl.textContent = "No. KP: " + record.no_kp;
+      }
+      if (cardElements.emailValueEl) {
+        cardElements.emailValueEl.textContent = buildFullEmail(record);
+      }
+      if (cardElements.usernameSubEl) {
+        cardElements.usernameSubEl.textContent = "Username: " + (record.username || "-");
+      }
+      if (otpInputEl) {
+        otpInputEl.value = "";
+      }
+      if (cardElements.otpPanelEl) {
+        cardElements.otpPanelEl.classList.add("hidden");
+      }
+      showAlertBox(cardElements.otpFeedbackEl, "", "");
+
+      updateResultCardStatusUI(
+        record,
+        cardElements.statusBadgeEl,
+        cardElements.timestampEl,
+        cardElements.copyBtnEl,
+        cardElements.requestOtpBtnEl
+      );
 
       const cache = window.IDBCache || window.cacheService;
       if (cache && typeof cache.invalidateStore === "function") {
@@ -715,29 +903,33 @@
         dom.searchFeedback,
         "success",
         record.sudah_maklum
-          ? "Pengesahan makluman bagi " + buildFullEmail(record) + " telah berjaya direkodkan."
+          ? "Pengesahan OTP berjaya! Status makluman bagi " + buildFullEmail(record) + " telah direkodkan."
           : "Status makluman bagi " + buildFullEmail(record) + " telah dikemas kini kepada Belum Maklum."
       );
     } catch (err) {
-      checkboxEl.checked = Boolean(record.sudah_maklum);
       showAlertBox(
-        dom.searchFeedback,
+        cardElements.otpFeedbackEl || dom.searchFeedback,
         "error",
         "Gagal mengemas kini pengesahan: " + (err && err.message ? err.message : "Ralat tidak diketahui.")
       );
     } finally {
       state.pendingConfirmIds.delete(recordId);
-      checkboxEl.disabled = false;
+      if (verifyBtnEl) {
+        verifyBtnEl.disabled = false;
+        verifyBtnEl.textContent = "Sahkan Kod OTP";
+      }
     }
   }
 
-  function updateResultCardStatusUI(record, checkboxEl, statusBadgeEl, timestampEl, copyBtnEl) {
+  function updateResultCardStatusUI(record, statusBadgeEl, timestampEl, copyBtnEl, requestOtpBtnEl) {
     const isConfirmed = Boolean(record.sudah_maklum);
-    if (checkboxEl) {
-      checkboxEl.checked = isConfirmed;
-    }
     if (!isConfirmed && copyBtnEl) {
       resetCopyButtonUI(copyBtnEl);
+    }
+    if (requestOtpBtnEl && !state.pendingOtpIds.has(record.id)) {
+      requestOtpBtnEl.textContent = isConfirmed
+        ? "Tukar Status (Hantar Kod OTP)"
+        : "Hantar Kod OTP ke Emel @melaka.my";
     }
     if (statusBadgeEl) {
       statusBadgeEl.className = isConfirmed
@@ -782,7 +974,8 @@
         window.RealtimeSync.trackRecord("meldotmy_pengguna", record);
       }
 
-      const fullEmail = buildFullEmail(record);
+      const displayEmail = record._otpVerified ? buildFullEmail(record) : maskEmail(buildFullEmail(record));
+      const displayNoKp = record._otpVerified ? (record.no_kp || "-") : maskNoKp(record.no_kp);
 
       const card = document.createElement("article");
       card.className = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-colors";
@@ -814,7 +1007,7 @@
 
       const kpText = document.createElement("p");
       kpText.className = "mt-1 text-xs text-slate-500";
-      kpText.textContent = "No. KP: " + (record.no_kp || "-");
+      kpText.textContent = "No. KP: " + displayNoKp;
       identityWrap.appendChild(kpText);
 
       topRow.appendChild(identityWrap);
@@ -842,12 +1035,12 @@
 
       const emailValue = document.createElement("p");
       emailValue.className = "break-all font-mono text-base font-bold text-blue-700 sm:text-lg";
-      emailValue.textContent = fullEmail;
+      emailValue.textContent = displayEmail;
       emailValueWrap.appendChild(emailValue);
 
       const usernameSub = document.createElement("p");
       usernameSub.className = "mt-0.5 text-xs text-slate-500";
-      usernameSub.textContent = "Username: " + (record.username || "-");
+      usernameSub.textContent = "Username: " + (record._otpVerified ? (record.username || "-") : maskEmail(buildFullEmail(record)).split("@")[0]);
       emailValueWrap.appendChild(usernameSub);
 
       emailActionRow.appendChild(emailValueWrap);
@@ -917,52 +1110,104 @@
       card.appendChild(emailBox);
 
       const confirmWrap = document.createElement("div");
-      confirmWrap.className = "mt-4 border-t border-slate-100 pt-4";
+      confirmWrap.className = "mt-4 space-y-3 border-t border-slate-100 pt-4";
 
-      const checkboxId = "confirm-maklum-" + String(record.id);
-      const labelEl = document.createElement("label");
-      labelEl.setAttribute("for", checkboxId);
-      labelEl.className = "flex min-h-[44px] cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 transition hover:border-blue-300 hover:bg-blue-50/40";
+      const otpHeaderBox = document.createElement("div");
+      otpHeaderBox.className = "flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 sm:flex-row sm:items-center sm:justify-between";
 
-      const checkboxEl = document.createElement("input");
-      checkboxEl.type = "checkbox";
-      checkboxEl.id = checkboxId;
-      checkboxEl.setAttribute("data-role", "confirm-checkbox");
-      checkboxEl.className = "mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500";
-      checkboxEl.checked = Boolean(record.sudah_maklum);
-
-      const labelTextWrap = document.createElement("span");
-      labelTextWrap.className = "text-sm leading-snug text-slate-800";
+      const labelTextWrap = document.createElement("div");
+      labelTextWrap.className = "min-w-0 flex-1 text-sm leading-snug text-slate-800";
 
       const mainInstruction = document.createElement("span");
-      mainInstruction.className = "font-semibold";
-      mainInstruction.textContent = "Saya mengesahkan bahawa saya telah maklum akan username emel @melaka.my saya di atas.";
+      mainInstruction.className = "block font-semibold";
+      mainInstruction.textContent = "Pengesahan Identiti Dua Langkah (OTP Emel @melaka.my)";
       labelTextWrap.appendChild(mainInstruction);
+
+      const subInstruction = document.createElement("span");
+      subInstruction.className = "mt-0.5 block text-xs text-slate-600";
+      subInstruction.textContent = "Minta kod pengesahan 6 digit ke peti masuk emel @melaka.my anda untuk mendedahkan alamat penuh dan merekodkan status makluman.";
+      labelTextWrap.appendChild(subInstruction);
 
       const timestampEl = document.createElement("span");
       timestampEl.setAttribute("data-role", "timestamp-text");
       timestampEl.className = "mt-1 block text-xs font-medium text-emerald-700";
       labelTextWrap.appendChild(timestampEl);
 
-      labelEl.appendChild(checkboxEl);
-      labelEl.appendChild(labelTextWrap);
-      confirmWrap.appendChild(labelEl);
+      const requestOtpBtn = document.createElement("button");
+      requestOtpBtn.type = "button";
+      requestOtpBtn.className = "min-h-[44px] shrink-0 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500";
+      requestOtpBtn.textContent = "Hantar Kod OTP ke Emel @melaka.my";
+
+      otpHeaderBox.appendChild(labelTextWrap);
+      otpHeaderBox.appendChild(requestOtpBtn);
+      confirmWrap.appendChild(otpHeaderBox);
+
+      const otpFeedbackEl = document.createElement("div");
+      otpFeedbackEl.className = "hidden";
+      otpFeedbackEl.setAttribute("aria-live", "polite");
+      confirmWrap.appendChild(otpFeedbackEl);
+
+      const otpPanelEl = document.createElement("div");
+      otpPanelEl.className = "hidden rounded-xl border border-blue-200 bg-blue-50/60 p-3.5";
+
+      const otpInputLabel = document.createElement("label");
+      const otpInputId = "otp-code-input-" + String(record.id);
+      otpInputLabel.setAttribute("for", otpInputId);
+      otpInputLabel.className = "block text-xs font-semibold text-slate-800";
+      otpInputLabel.textContent = "Masukkan Kod Pengesahan 6 Digit (OTP)";
+      otpPanelEl.appendChild(otpInputLabel);
+
+      const otpActionRow = document.createElement("div");
+      otpActionRow.className = "mt-2 flex flex-col gap-2 sm:flex-row sm:items-center";
+
+      const otpInputEl = document.createElement("input");
+      otpInputEl.type = "text";
+      otpInputEl.id = otpInputId;
+      otpInputEl.setAttribute("inputmode", "numeric");
+      otpInputEl.setAttribute("maxlength", "6");
+      otpInputEl.setAttribute("autocomplete", "one-time-code");
+      otpInputEl.placeholder = "Contoh: 482910";
+      otpInputEl.className = "min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 font-mono text-base tracking-widest text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 sm:w-48";
+      otpInputEl.addEventListener("input", function () {
+        otpInputEl.value = sanitizeNoKp(otpInputEl.value).slice(0, 6);
+      });
+      otpActionRow.appendChild(otpInputEl);
+
+      const verifyOtpBtn = document.createElement("button");
+      verifyOtpBtn.type = "button";
+      verifyOtpBtn.className = "min-h-[44px] shrink-0 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500";
+      verifyOtpBtn.textContent = "Sahkan Kod OTP";
+      otpActionRow.appendChild(verifyOtpBtn);
+
+      otpPanelEl.appendChild(otpActionRow);
+      confirmWrap.appendChild(otpPanelEl);
+
+      const cardElements = {
+        statusBadgeEl: statusBadge,
+        timestampEl: timestampEl,
+        copyBtnEl: copyBtn,
+        requestOtpBtnEl: requestOtpBtn,
+        otpPanelEl: otpPanelEl,
+        otpFeedbackEl: otpFeedbackEl,
+        kpTextEl: kpText,
+        emailValueEl: emailValue,
+        usernameSubEl: usernameSub
+      };
 
       copyBtn.addEventListener("click", async function () {
-        const isFirstCopyClick = copyBtn.dataset.copyTriggered !== "true";
         copyBtn.dataset.copyTriggered = "true";
-        await copyEmailToClipboard(fullEmail, copyBtn);
-        if (isFirstCopyClick && !checkboxEl.checked && !checkboxEl.disabled) {
-          checkboxEl.checked = true;
-          handleConfirmationToggle(record, checkboxEl, statusBadge, timestampEl, copyBtn);
-        }
+        await copyEmailToClipboard(buildFullEmail(record), copyBtn);
       });
 
-      checkboxEl.addEventListener("change", function () {
-        handleConfirmationToggle(record, checkboxEl, statusBadge, timestampEl, copyBtn);
+      requestOtpBtn.addEventListener("click", function () {
+        handleRequestOtp(record, requestOtpBtn, otpPanelEl, otpFeedbackEl);
       });
 
-      updateResultCardStatusUI(record, checkboxEl, statusBadge, timestampEl, copyBtn);
+      verifyOtpBtn.addEventListener("click", function () {
+        handleVerifyOtpConfirmation(record, otpInputEl, verifyOtpBtn, !record.sudah_maklum, cardElements);
+      });
+
+      updateResultCardStatusUI(record, statusBadge, timestampEl, copyBtn, requestOtpBtn);
 
       card.appendChild(confirmWrap);
       fragment.appendChild(card);
@@ -980,6 +1225,13 @@
         renderSearchResults([]);
         showAlertBox(dom.searchFeedback, "error", "Sila masukkan 12 digit No. Kad Pengenalan anda tanpa tanda \"-\" atau aksara lain.");
       }
+      return;
+    }
+
+    const turnstileSiteKey = getTurnstileSiteKey();
+    if (!silentRefresh && turnstileSiteKey && !state.turnstileToken) {
+      renderSearchResults([]);
+      showAlertBox(dom.searchFeedback, "warning", "Sila lengkapkan pengesahan keselamatan (CAPTCHA) terlebih dahulu sebelum membuat carian.");
       return;
     }
 
@@ -1033,7 +1285,7 @@
         showAlertBox(
           dom.searchFeedback,
           "info",
-          "Carian berjaya. Sila semak alamat emel anda dan tandakan kotak pengesahan di bawah."
+          "Rekod ditemui (dipaparkan secara bertopeng demi privasi). Sila klik 'Hantar Kod OTP ke Emel @melaka.my' untuk pengesahan."
         );
       }
     } catch (err) {
@@ -1053,6 +1305,9 @@
         state.searchAbortController = null;
       }
       state.isSearching = false;
+      if (!silentRefresh) {
+        resetTurnstileWidget();
+      }
       if (dom.btnSearch) {
         dom.btnSearch.disabled = false;
         dom.btnSearch.textContent = "Semak Emel";
@@ -1071,6 +1326,7 @@
     if (dom.searchForm) {
       dom.searchForm.reset();
     }
+    resetTurnstileWidget();
     renderSearchResults([]);
     showAlertBox(dom.searchFeedback, "", "");
     if (dom.searchNoKpInput) {
@@ -1101,11 +1357,10 @@
         if (dom.resultsContainer) {
           const cardEl = dom.resultsContainer.querySelector('[data-record-id="' + String(incoming.id) + '"]');
           if (cardEl) {
-            const cb = cardEl.querySelector('[data-role="confirm-checkbox"]');
             const badge = cardEl.querySelector('[data-role="status-badge"]');
             const ts = cardEl.querySelector('[data-role="timestamp-text"]');
             const copyBtnEl = cardEl.querySelector('[data-role="copy-email-btn"]');
-            updateResultCardStatusUI(state.searchResults[i], cb, badge, ts, copyBtnEl);
+            updateResultCardStatusUI(state.searchResults[i], badge, ts, copyBtnEl, null);
           }
         }
       }
@@ -1275,12 +1530,17 @@
   }
 
   async function syncAdminSessionFromSupabase() {
-    if (typeof window.getAuthenticatedAdmin !== "function") {
+    const verifyFn = typeof window.verifySuperAdminServer === "function"
+      ? window.verifySuperAdminServer
+      : typeof window.getAuthenticatedAdmin === "function"
+        ? window.getAuthenticatedAdmin
+        : null;
+    if (!verifyFn) {
       applyAdminSessionState(null);
       return null;
     }
     try {
-      const adminUser = await window.getAuthenticatedAdmin();
+      const adminUser = await verifyFn();
       applyAdminSessionState(adminUser);
       return adminUser;
     } catch (_) {
@@ -1345,7 +1605,7 @@
 
       const verifiedAdmin = await syncAdminSessionFromSupabase();
       if (!verifiedAdmin) {
-        throw new Error("Akaun tidak disahkan dalam auth.users Supabase.");
+        throw new Error("Akaun tidak disahkan sebagai Super Admin aktif dalam pangkalan data.");
       }
 
       if (dom.adminLoginForm) {
@@ -1689,14 +1949,20 @@
 
     try {
       await window.ENV_READY;
+      initTurnstileWidget();
       const supabase = await window.getSupabaseClient();
 
       await syncAdminSessionFromSupabase();
 
       if (supabase && supabase.auth && typeof supabase.auth.onAuthStateChange === "function") {
         supabase.auth.onAuthStateChange(function (_event, session) {
-          const sessionUser = session && session.user ? session.user : null;
-          applyAdminSessionState(sessionUser);
+          if (!session || !session.user) {
+            applyAdminSessionState(null);
+            return;
+          }
+          syncAdminSessionFromSupabase().catch(function () {
+            applyAdminSessionState(null);
+          });
         });
       }
 

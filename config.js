@@ -3,22 +3,27 @@
 
   const CONFIG_ENDPOINT = "/api/config";
   const FETCH_TIMEOUT_MS = 10000;
+  const AUTH_STORAGE_KEY = "meldotmy-superadmin-auth";
   let supabaseClientInstance = null;
   const fallbackMemoryStorage = Object.create(null);
 
   function createSafeAuthStorage() {
-    let canUseLocalStorage = false;
+    try {
+      window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch (_) {}
+
+    let canUseSessionStorage = false;
     try {
       const testKey = "__meldotmy_storage_probe__";
-      window.localStorage.setItem(testKey, "1");
-      window.localStorage.removeItem(testKey);
-      canUseLocalStorage = true;
+      window.sessionStorage.setItem(testKey, "1");
+      window.sessionStorage.removeItem(testKey);
+      canUseSessionStorage = true;
     } catch (_) {
-      canUseLocalStorage = false;
+      canUseSessionStorage = false;
     }
 
-    if (canUseLocalStorage) {
-      return window.localStorage;
+    if (canUseSessionStorage) {
+      return window.sessionStorage;
     }
 
     return {
@@ -78,6 +83,7 @@
     const supabaseUrl = typeof payload.SUPABASE_URL === "string" ? payload.SUPABASE_URL.trim() : "";
     const supabaseAnonKey = typeof payload.SUPABASE_ANON_KEY === "string" ? payload.SUPABASE_ANON_KEY.trim() : "";
     const gasEndpointUrl = typeof payload.GAS_ENDPOINT_URL === "string" ? payload.GAS_ENDPOINT_URL.trim() : "";
+    const turnstileSiteKey = typeof payload.TURNSTILE_SITE_KEY === "string" ? payload.TURNSTILE_SITE_KEY.trim() : "";
 
     if (!supabaseUrl || !supabaseAnonKey) {
       throw new Error("Pemboleh ubah SUPABASE_URL atau SUPABASE_ANON_KEY tiada atau kosong.");
@@ -90,6 +96,10 @@
 
     if (gasEndpointUrl) {
       frozenEnv.GAS_ENDPOINT_URL = gasEndpointUrl;
+    }
+
+    if (turnstileSiteKey) {
+      frozenEnv.TURNSTILE_SITE_KEY = turnstileSiteKey;
     }
 
     Object.freeze(frozenEnv);
@@ -115,7 +125,7 @@
           persistSession: true,
           autoRefreshToken: true,
           detectSessionInUrl: false,
-          storageKey: "meldotmy-superadmin-auth",
+          storageKey: AUTH_STORAGE_KEY,
           storage: createSafeAuthStorage()
         }
       }
@@ -124,7 +134,7 @@
     return supabaseClientInstance;
   };
 
-  window.getAuthenticatedAdmin = async function () {
+  window.verifySuperAdminServer = async function () {
     const supabase = await window.getSupabaseClient();
     const sessionRes = await supabase.auth.getSession();
     if (sessionRes.error || !sessionRes.data || !sessionRes.data.session) {
@@ -134,6 +144,15 @@
     if (userRes.error || !userRes.data || !userRes.data.user) {
       return null;
     }
+    const adminCheckRes = await supabase.rpc("meldotmy_admin_semak");
+    if (adminCheckRes.error || adminCheckRes.data !== true) {
+      try {
+        await supabase.auth.signOut();
+      } catch (_) {}
+      return null;
+    }
     return userRes.data.user;
   };
+
+  window.getAuthenticatedAdmin = window.verifySuperAdminServer;
 })();

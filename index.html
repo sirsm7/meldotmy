@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="styles.css?v=4">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
   <div class="flex min-h-dvh flex-col">
@@ -143,7 +144,7 @@
         <div class="border-b border-slate-100 pb-4">
           <h2 id="searchHeading" class="text-base font-bold text-slate-900 sm:text-lg">Semakan Akaun Emel @melaka.my</h2>
           <p class="mt-1 text-xs text-slate-600 sm:text-sm">
-            Atas faktor privasi, senarai penuh tidak dipaparkan secara terbuka. Sila buat carian menggunakan <strong>No. Kad Pengenalan (12 digit)</strong> sahaja.
+            Atas faktor privasi, senarai penuh tidak dipaparkan secara terbuka dan hasil carian awal dipaparkan secara bertopeng. Sila buat carian menggunakan <strong>No. Kad Pengenalan (12 digit)</strong> dan lengkapkan pengesahan OTP emel <span class="font-mono font-semibold">@melaka.my</span> untuk pengesahan makluman.
           </p>
         </div>
 
@@ -169,6 +170,8 @@
               Makluman: Sila masukkan 12 digit No. Kad Pengenalan anda <strong>tanpa tanda "-"</strong> (Contoh: <span class="font-mono font-semibold">060315040205</span>, bukan <span class="font-mono line-through">060315-04-0205</span>).
             </p>
           </div>
+
+          <div id="turnstileWidgetWrap" class="hidden pt-1"></div>
 
           <div class="flex flex-col gap-2.5 pt-1 sm:flex-row sm:items-center">
             <button
@@ -459,12 +462,12 @@
     </footer>
   </div>
 
-  <script src="config.js?v=2"></script>
+  <script src="config.js?v=3"></script>
   <script src="idb-cache.js?v=1"></script>
   <script src="realtime.js?v=1"></script>
-  <script src="migration.js?v=1"></script>
-  <script src="csv-importer.js?v=1"></script>
-  <script src="admin-drilldown.js?v=1"></script>
-  <script src="app.js?v=9"></script>
+  <script src="migration.js?v=2"></script>
+  <script src="csv-importer.js?v=2"></script>
+  <script src="admin-drilldown.js?v=2"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>

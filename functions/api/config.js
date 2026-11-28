@@ -3,6 +3,7 @@ export async function onRequestGet(context) {
   const supabaseUrl = typeof env.SUPABASE_URL === "string" ? env.SUPABASE_URL.trim() : "";
   const supabaseAnonKey = typeof env.SUPABASE_ANON_KEY === "string" ? env.SUPABASE_ANON_KEY.trim() : "";
   const gasEndpointUrl = typeof env.GAS_ENDPOINT_URL === "string" ? env.GAS_ENDPOINT_URL.trim() : "";
+  const turnstileSiteKey = typeof env.TURNSTILE_SITE_KEY === "string" ? env.TURNSTILE_SITE_KEY.trim() : "";
 
   const headers = {
     "Content-Type": "application/json; charset=utf-8",
@@ -41,6 +42,10 @@ export async function onRequestGet(context) {
 
   if (gasEndpointUrl) {
     payload.GAS_ENDPOINT_URL = gasEndpointUrl;
+  }
+
+  if (turnstileSiteKey) {
+    payload.TURNSTILE_SITE_KEY = turnstileSiteKey;
   }
 
   return new Response(JSON.stringify(payload), {

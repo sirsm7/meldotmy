@@ -78,6 +78,21 @@
     return uname ? uname + EMAIL_DOMAIN : "-";
   }
 
+  function maskNoKp(rawKp) {
+    const cleaned = String(rawKp || "").trim();
+    if (!cleaned || cleaned === "-") {
+      return "-";
+    }
+    if (cleaned.indexOf("*") !== -1) {
+      return cleaned;
+    }
+    const digits = cleaned.replace(/[^0-9]/g, "");
+    if (digits.length >= 6) {
+      return digits.slice(0, 6) + "******";
+    }
+    return "******";
+  }
+
   function abortInFlightRequest() {
     if (state.activeAbortController) {
       state.activeAbortController.abort();
@@ -203,12 +218,17 @@
     if (!state.isAdminEnabled) {
       return false;
     }
-    if (typeof window.getAuthenticatedAdmin !== "function") {
+    const verifyFn = typeof window.verifySuperAdminServer === "function"
+      ? window.verifySuperAdminServer
+      : typeof window.getAuthenticatedAdmin === "function"
+        ? window.getAuthenticatedAdmin
+        : null;
+    if (!verifyFn) {
       setAdminEnabled(false);
       return false;
     }
     try {
-      const user = await window.getAuthenticatedAdmin();
+      const user = await verifyFn();
       if (!user) {
         setAdminEnabled(false);
         return false;
@@ -422,7 +442,7 @@
       const u = state.usersData[i];
       const idStr = String(u.id || "");
       const nameStr = String(u.nama_penuh || "").toUpperCase();
-      const kpStr = String(u.no_kp || "");
+      const kpStr = maskNoKp(u.no_kp);
       const userStr = String(u.username || "").toUpperCase();
       const roleStr = String(u.jenis_id || "").toUpperCase();
       if (
@@ -530,7 +550,7 @@
 
       const tdKp = document.createElement("td");
       tdKp.className = "whitespace-nowrap px-3.5 py-3 font-mono text-slate-700";
-      tdKp.textContent = rec.no_kp || "-";
+      tdKp.textContent = maskNoKp(rec.no_kp);
       tr.appendChild(tdKp);
 
       const tdEmail = document.createElement("td");

@@ -227,6 +227,25 @@
     }
   }
 
+  async function ensureSuperAdminAuthorized() {
+    const verifyFn = typeof window.verifySuperAdminServer === "function"
+      ? window.verifySuperAdminServer
+      : typeof window.getAuthenticatedAdmin === "function"
+        ? window.getAuthenticatedAdmin
+        : null;
+
+    if (!verifyFn) {
+      throw new Error("Modul pengesahan Super Admin pelayan tidak tersedia.");
+    }
+
+    const adminUser = await verifyFn();
+    if (!adminUser) {
+      throw new Error("Akses ditolak. Hanya Super Admin berdaftar dan aktif dibenarkan menjalankan operasi sandaran atau pemulihan.");
+    }
+
+    return adminUser;
+  }
+
   async function exportBackupJson(options) {
     if (operationInProgress) {
       throw new Error("Operasi migrasi lain sedang dijalankan. Sila tunggu sehingga selesai.");
@@ -239,8 +258,9 @@
     operationInProgress = true;
 
     try {
-      emitProgress(onProgress, "export", "Menyemak konfigurasi & skema pangkalan data...", 5);
+      emitProgress(onProgress, "export", "Mengesahkan kelayakan Super Admin & konfigurasi pangkalan data...", 5);
       const env = await window.ENV_READY;
+      await ensureSuperAdminAuthorized();
       const supabase = await window.getSupabaseClient();
       const schemaMap = await discoverRuntimeSchema(env, controller.signal);
 
@@ -546,6 +566,7 @@
       }
 
       const env = await window.ENV_READY;
+      await ensureSuperAdminAuthorized();
       const supabase = await window.getSupabaseClient();
       const schemaMap = await discoverRuntimeSchema(env, controller.signal);
 

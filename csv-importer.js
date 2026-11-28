@@ -162,13 +162,19 @@
       emitProgress(onProgress, "Mengesahkan kelayakan Super Admin...", 2);
       await window.ENV_READY;
 
-      if (typeof window.getAuthenticatedAdmin !== "function") {
+      const verifyFn = typeof window.verifySuperAdminServer === "function"
+        ? window.verifySuperAdminServer
+        : typeof window.getAuthenticatedAdmin === "function"
+          ? window.getAuthenticatedAdmin
+          : null;
+
+      if (!verifyFn) {
         throw new Error("Modul pengesahan Super Admin tidak tersedia.");
       }
 
-      const adminUser = await window.getAuthenticatedAdmin();
+      const adminUser = await verifyFn();
       if (!adminUser) {
-        throw new Error("Akses ditolak. Hanya Super Admin berdaftar dalam auth.users dibenarkan memuat naik CSV.");
+        throw new Error("Akses ditolak. Hanya Super Admin berdaftar dan aktif dibenarkan memuat naik CSV.");
       }
 
       const supabase = await window.getSupabaseClient();
